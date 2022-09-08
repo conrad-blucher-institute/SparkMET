@@ -1,1 +1,1 @@
-# TransFog
+# FogNet-V2
