@@ -320,8 +320,8 @@ def netcdf_names_check(root_dir, target=None):
     NAN = pandas.DataFrame(columns = ['name'])
     NAN['name'] = names
     # Reading the directory of map data and check and remove those they are incomplete or target is NAN!
-    netcef_nams_file_name = []   # we need to return the name of maps which are coomplete!
-    netcef_murs_file_name = []   # we need to return the name of maps which are coomplete!
+    netcef_nams_file_name = []   
+    netcef_murs_file_name = []   
     for root, dirs, files in os.walk(root_dir):
         dirs.sort()
         files.sort()
