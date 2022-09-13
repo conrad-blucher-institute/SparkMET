@@ -7,10 +7,16 @@ from numpy import savez_compressed
 from numpy import load
 import pandas
 import scipy.ndimage
-import matplotlib.pyplot as pyplot
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
 import os.path
 import itertools
+plt.rcParams.update({'axes.titlesize': 14})
+plt.rc('xtick', labelsize=12)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=12)    # fontsize of the tick labels
+plt.rc('axes', labelsize=14)    # fontsize of the x and y labels
+
 
 
 
@@ -183,51 +189,36 @@ NETCDF_PREDICTOR_NAMES = {
 
 
 
-NETCDF_MUR_NAMES = [NETCDF_SST]
-NETCDF_TMP_NAMES = [NETCDF_TMP_SFC, NETCDF_TMP_2m, NETCDF_DPT_2m]
+NETCDF_MUR_NAMES   = [NETCDF_SST]
+NETCDF_TMP_NAMES   = [NETCDF_TMP_SFC, NETCDF_TMP_2m, NETCDF_DPT_2m]
 NETCDF_MIXED_NAMES = [NETCDF_SST, NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST]
-NETCDF_GEN_NAMES = [NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST]
+NETCDF_GEN_NAMES   = [NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST]
 
 
-YEAR_FOG_DIR_NAME = '.'
-ALL_FOG_DIR_NAME = '..'
-#DEFAULT_IMAGE_DIR_NAME = ('./Dataset/')
 DEFAULT_IMAGE_DIR_NAME = ('/data1/fog-data/fog-maps/')
-#DEFAULT_IMAGE_DIR_NAME = ('/data1/fog-data/fog-maps/2018/')
-DEFAULT_NAMES_DIR_NAME = ('./data1/fog/Dataset/NAMES/')
-DEFAULT_CUBES_DIR_NAME = ('/data1/fog/Dataset/INPUT/MinMax/')
-DEFAULT_CUBES_12_DIR_NAME = ('/data1/fog/Dataset/INPUT/12Hours/')
 DEFAULT_TARGET_DIR_NAME = ('/data1/fog/Dataset/TARGET')
-SEPARATOR_STRING = '\n\n' + '*' * 50 + '\n\n'
-MINOR_SEPARATOR_STRING = '\n\n' + '-' * 50 + '\n\n'
 
-DATE_FORMAT = '%Y%m%d'
-DATE_FORMAT_REGEX = '[0-9][0-9][0-9][0-9][0-1][0-9][0-3][0-9]'
-TIME_CYCLE_FORMAT = '[0-9][0-9][0][0]'
+
+DATE_FORMAT            = '%Y%m%d'
+DATE_FORMAT_REGEX      = '[0-9][0-9][0-9][0-9][0-1][0-9][0-3][0-9]'
+TIME_CYCLE_FORMAT      = '[0-9][0-9][0][0]'
 HOUR_PREDICTION_FORMAT = '[0][0-9][0-9]'
 
 ### Defult Names and Settings
-SEPARATOR_STRING = '\n\n' + '*' * 50 + '\n\n'
-MINOR_SEPARATOR_STRING = '\n\n' + '-' * 50 + '\n\n'
-FIG_DEFULT_SIZE = (12, 10)
-PREDICTOR_NAMES_KEY = 'predictor_names'
+PREDICTOR_NAMES_KEY  = 'predictor_names'
 PREDICTOR_MATRIX_KEY = 'predictor_matrix'
-CUBE_NAMES_KEY = 'cube_name'
-SST_MATRIX_KEY = 'sst_matrix'
-SST_NAME_KEY = 'sst_name'
+CUBE_NAMES_KEY       = 'cube_name'
+SST_MATRIX_KEY       = 'sst_matrix'
+SST_NAME_KEY         = 'sst_name'
 
-# Misc constants.
-SEPARATOR_STRING = '\n\n' + '*' * 50 + '\n\n'
-MINOR_SEPARATOR_STRING = '\n\n' + '-' * 50 + '\n\n'
+
 
 DATE_FORMAT = '%Y%m%d'
 DATE_FORMAT_REGEX = '[0-9][0-9][0-9][0-9][0-1][0-9][0-3][0-9]'
 TIME_CYCLE_FORMAT = '[0-9][0-9][0][0]'
 HOUR_PREDICTION_FORMAT = '[0-9][0-9][0-9]'
 
-NUM_VALUES_KEY = 'num_values'
-MEAN_VALUE_KEY = 'mean_value'
-MEAN_OF_SQUARES_KEY = 'mean_of_squares'
+
 
 
 def time_string_to_unix(time_string, time_format):
@@ -286,28 +277,6 @@ def _nc_file_name_to_hourprediction(netcdf_file_name):
         pathless_file_name[-9:], '')
     return hourpredic_string
 
-def find_match_name (netcdf_file_name):
-    date = _nc_file_name_to_date(netcdf_file_name)
-    timecycle = _nc_file_name_to_timecycle(netcdf_file_name)
-    hourprediction = _nc_file_name_to_hourprediction(netcdf_file_name)
-    this_cube_match_name = date + timecycle
-
-    return {'cube_match_name' : this_cube_match_name,
-    'date' : date,
-    'timecycle' : timecycle,
-    'hourprediction' : hourprediction}
-
-
-def RenewDf(df):
-    newdf = pandas.DataFrame()
-
-    newdf['Date']    = df['Date'].values
-    newdf['VIS_Cat'] = df['VIS_Cat'].values
-    newdf['VIS']     = df['VIS'].values
-
-    return newdf
-
-
 
 class data_generater():
 
@@ -339,28 +308,24 @@ class data_generater():
 
 
     def generate_revised_dataframe(self, netcef_nams_file_name, netcef_murs_file_name, targets):
-
- 
-
         netcdf_name_names = []
         for i, row in targets.iterrows():
             day_time_obs = row['Name'] 
-            netcdf_name_names.append(self.return_daily_map_names_timeseries_list(netcef_nams_file_name, day_time_obs))
+            timeseries_daily_names = self.return_daily_map_names_timeseries_list(netcef_nams_file_name, day_time_obs)
+            netcdf_name_names.append(timeseries_daily_names[0])
 
-        #print(f"{self.return_day_of_map_name(netcef_nams_file_name[1999])} | {day_time_obs}")
-
-        targets['nam_nc_files_path'] =  netcdf_name_names 
+        targets['nam_nc_files_path'] =  netcdf_name_names
+        targets['nam_nc_files_path'] =  targets['nam_nc_files_path'].astype('object')
 
         targets = targets.drop(columns=['WXCODE'])
 
-        targets = targets.rename(columns={'Date_Time': 'DateTime', "Date": "date", "Name":"date_leadtime", "VIS":"vis", "VIS_Cat": "vis_class"})
+        targets = targets.rename(columns={'Date_Time': 'DateTime', "Date": "date", "Name":"date_cycletime", "VIS":"vis", "VIS_Cat": "vis_class"})
         targets.reset_index(inplace = True, drop = True)
         
         return targets
 
 
     def return_day_of_map_name(self, map_name): 
-
 
         namesplit = os.path.split(map_name)[-1]
         name      = namesplit.replace(namesplit[:5], '').replace(namesplit[18:], '')
@@ -370,7 +335,6 @@ class data_generater():
 
 
     def return_daily_map_names_timeseries_list(self, nc_file_names, day_time_obs):
-        
 
         output = [name for name in nc_file_names if self.return_day_of_map_name(name) == day_time_obs]
 
@@ -530,19 +494,423 @@ class data_generater():
     def reading_csv_target_file(self, csv_file_name):
 
         data = pandas.read_csv(csv_file_name, header=0, sep=',')
-
+        year, month, day, timecycle = [], [], [], []
         for i in range(len(data)):
-            namesplit = os.path.split(data['Name'][i])[-1]
-            year      = namesplit.replace(namesplit[4:], '')
-            month     = namesplit.replace(namesplit[0:4], '').replace(namesplit[6:], '')
-            day       = namesplit.replace(namesplit[0:6], '').replace(namesplit[8:], '')
-            timecycle = namesplit.replace(namesplit[0:8], '')
+            year.append(data.iloc[i]['Name'][:4]) 
+            month.append(data.iloc[i]['Name'][4:6])
+            day.append(data.iloc[i]['Name'][6:8])
+            timecycle.append(data.iloc[i]['Name'][9:]) 
 
         data['year']      = year
         data['month']     = month
         data['day']       = day
+        data['timecycle'] = timecycle
 
         return data
+
+
+class fog_map_generator(): 
+
+    def __init__(self, dataframe_path  = None, map_structure = None, predictor_names = None, return_normalize_map = None, lead_time_pred = None): 
+
+
+        self.map_structure        = map_structure
+        self.predictor_names      = predictor_names
+        self.return_normalize_map = return_normalize_map
+        self.lead_time_pred       = lead_time_pred
+
+        self.dataset = pandas.read_csv(dataframe_path, index_col= 0)
+
+    def return_feature_map_matrix(self):
+
+        feature_maps = None
+
+        for idx in range(len(self.dataset)): 
+  
+            nc_timeseries_files_path_list = self.dataset.iloc[idx]['nam_nc_files_path']
+            timeseries_predictor_matrix = self.read_nc_nam_maps(nc_timeseries_files_path_list, self.predictor_names)
+
+            if self.map_structure == '4D':
+                timeseries_predictor_matrix = numpy.expand_dims(timeseries_predictor_matrix, axis=0)
+
+            if feature_maps is None:
+                feature_maps = timeseries_predictor_matrix + 0.
+            else:
+                feature_maps = numpy.concatenate(
+                    (feature_maps, timeseries_predictor_matrix), axis=0
+                )
+        return feature_maps
+
+
+    def read_nc_nam_maps(self, netcdf_file_root_names, PREDICTOR_NAMES):
+
+        NETCDF_PREDICTOR_NAMES = PREDICTOR_NAMES
+
+        timeseries_predictor_matrix = None
+
+        if self.lead_time_pred == 6:
+            netcdf_file_006_names = netcdf_file_root_names[0:57] + '006_input.nc'
+            netcdf_file_names_list = [netcdf_file_root_names, netcdf_file_006_names]
+        elif self.lead_time_pred == 12:
+            netcdf_file_006_names = netcdf_file_root_names[0:57] + '006_input.nc'
+            netcdf_file_009_names = netcdf_file_root_names[0:57] + '009_input.nc'
+            netcdf_file_012_names = netcdf_file_root_names[0:57] + '012_input.nc'
+            netcdf_file_names_list = [netcdf_file_root_names, netcdf_file_006_names, netcdf_file_009_names, netcdf_file_012_names]
+        elif self.lead_time_pred == 24:
+            netcdf_file_006_names = netcdf_file_root_names[0:57] + '006_input.nc'
+            netcdf_file_012_names = netcdf_file_root_names[0:57] + '012_input.nc'
+            netcdf_file_024_names = netcdf_file_root_names[0:57] + '024_input.nc'
+            netcdf_file_names_list = [netcdf_file_root_names, netcdf_file_006_names, netcdf_file_012_names, netcdf_file_024_names]
+
+        for nc_file_name in netcdf_file_names_list:
+            
+            dataset_object = netCDF4.Dataset(nc_file_name)
+
+            predictor_matrix = None
+
+            for this_predictor_name in NETCDF_PREDICTOR_NAMES:
+                this_predictor_matrix = numpy.array(
+                    dataset_object.variables[this_predictor_name][:], dtype=float
+                )
+
+                this_predictor_matrix = numpy.expand_dims(
+                    this_predictor_matrix, axis=-1)
+
+                if predictor_matrix is None:
+                    predictor_matrix = this_predictor_matrix + 0.
+                else:
+                    predictor_matrix = numpy.concatenate(
+                        (predictor_matrix, this_predictor_matrix), axis=-1
+                    )
+
+
+            if self.map_structure == '3D':
+
+                if timeseries_predictor_matrix is None:
+                    timeseries_predictor_matrix = predictor_matrix + 0.
+
+                else:
+                    timeseries_predictor_matrix = numpy.concatenate(
+                        (timeseries_predictor_matrix, predictor_matrix), axis=-1
+                    )
+
+            elif self.map_structure == '4D':
+                #predictor_matrix = numpy.expand_dims(predictor_matrix, axis=0)
+
+                if timeseries_predictor_matrix is None:
+                    timeseries_predictor_matrix = predictor_matrix + 0.
+
+                else:
+                    timeseries_predictor_matrix = numpy.concatenate(
+                        (timeseries_predictor_matrix, predictor_matrix), axis=0
+                    )
+        
+        return timeseries_predictor_matrix
+
+
+
+def feature_daily_timeseries_plot(feature_maps, df, date = None, feature_name = None):
+
+
+    days_df = df.groupby(by = 'date')
+
+    this_date_df = days_df.get_group(date)
+
+    index = this_date_df.index
+
+    number_of_daily_timeseries = feature_maps.shape[1]
+    
+    index_feature_map = [idx for idx, element in enumerate(NETCDF_PREDICTOR_NAMES['All']) if element == feature_name]
+    index_feature_map = index_feature_map[0]
+
+    min_value0 = numpy.min(feature_maps[index[0], :, :, :, index_feature_map])
+    min_value1 = numpy.min(feature_maps[index[1], :, :, :, index_feature_map])
+    min_value2 = numpy.min(feature_maps[index[2], :, :, :, index_feature_map])
+    min_value3 = numpy.min(feature_maps[index[3], :, :, :, index_feature_map])
+    min_value  = numpy.min([min_value0, min_value1, min_value2, min_value3])
+
+    max_value0 = numpy.max(feature_maps[index[0], :, :, :, index_feature_map])
+    max_value1 = numpy.max(feature_maps[index[0], :, :, :, index_feature_map])
+    max_value2 = numpy.max(feature_maps[index[0], :, :, :, index_feature_map])
+    max_value3 = numpy.max(feature_maps[index[0], :, :, :, index_feature_map])
+    max_value  = numpy.max([max_value0, max_value1, max_value2, max_value3])
+
+
+
+    if number_of_daily_timeseries == 4:
+        plt.rcParams["axes.grid"] = False
+        fig, axs = plt.subplots(4, 4, figsize = (20, 20))
+
+        img1 = axs[0, 0].imshow(feature_maps[index[0], 0, :, :, index_feature_map])
+        axs[0, 0].set_title('000 lead_time')
+        y_label = r'0000: vis = {} miles'.format(this_date_df.iloc[index[0]]['vis'])
+        axs[0, 0].set_ylabel(y_label)
+        axs[0, 0].get_xaxis().set_visible(False)
+        divider = make_axes_locatable(axs[0, 0])
+        cax1 = divider.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img1,cax = cax1)
+        img1.set_clim(min_value, max_value)
+
+        img2 = axs[0, 1].imshow(feature_maps[index[0], 1, :, :, index_feature_map])
+        axs[0, 1].get_xaxis().set_visible(False)
+        axs[0, 1].get_yaxis().set_visible(False)
+        axs[0, 1].set_title('006 lead_time')
+        divider2 = make_axes_locatable(axs[0, 1])
+        cax2 = divider2.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img2, cax = cax2)
+        img2.set_clim(min_value, max_value)
+
+        img3 = axs[0, 2].imshow(feature_maps[index[0], 2, :, :, index_feature_map])
+        axs[0, 2].get_xaxis().set_visible(False)
+        axs[0, 2].get_yaxis().set_visible(False)
+        axs[0, 2].set_title('012 lead_time')
+        divider3 = make_axes_locatable(axs[0, 2])
+        cax3 = divider3.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img3, cax = cax3) 
+        img3.set_clim(min_value, max_value)
+
+        img4 = axs[0, 3].imshow(feature_maps[index[0], 3, :, :, index_feature_map])
+        axs[0, 3].get_xaxis().set_visible(False)
+        axs[0, 3].get_yaxis().set_visible(False)
+        axs[0, 3].set_title('024 lead_time')
+        divider4 = make_axes_locatable(axs[0, 3])
+        cax4 = divider4.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img4, cax = cax4) 
+        img4.set_clim(min_value, max_value)
+
+        img5 = axs[1, 0].imshow(feature_maps[index[1], 0, :, :, index_feature_map])
+        y_label = r'0600: vis = {} miles'.format(this_date_df.iloc[index[1]]['vis'])
+        axs[1, 0].set_ylabel(y_label)
+        axs[1, 0].get_xaxis().set_visible(False)
+        divider5 = make_axes_locatable(axs[1, 0])
+        cax5 = divider5.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img5, cax = cax5) 
+        img5.set_clim(min_value, max_value)
+
+        img6 = axs[1, 1].imshow(feature_maps[index[1], 1, :, :, index_feature_map])
+        axs[1, 1].get_xaxis().set_visible(False)
+        axs[1, 1].get_yaxis().set_visible(False)
+        divider6 = make_axes_locatable(axs[1, 1])
+        cax6 = divider6.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img6, cax = cax6) 
+        img6.set_clim(min_value, max_value)
+
+
+        img7 = axs[1, 2].imshow(feature_maps[index[1], 2, :, :, index_feature_map])
+        axs[1, 2].get_xaxis().set_visible(False)
+        axs[1, 2].get_yaxis().set_visible(False)
+        divider7 = make_axes_locatable(axs[1, 2])
+        cax7 = divider7.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img7, cax = cax7) 
+        img7.set_clim(min_value, max_value)
+
+        img8 = axs[1, 3].imshow(feature_maps[index[1], 3, :, :, index_feature_map])
+        axs[1, 3].get_xaxis().set_visible(False)
+        axs[1, 3].get_yaxis().set_visible(False)
+        divider8 = make_axes_locatable(axs[1, 3])
+        cax8 = divider8.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img8, cax = cax8) 
+        img8.set_clim(min_value, max_value)
+
+        img9 = axs[2, 0].imshow(feature_maps[index[2], 0, :, :, index_feature_map])
+        y_label = r'1200: vis = {} miles'.format(this_date_df.iloc[index[2]]['vis'])
+        axs[2, 0].set_ylabel(y_label)
+        axs[2, 0].get_xaxis().set_visible(False)
+        divider9 = make_axes_locatable(axs[2, 0])
+        cax9 = divider9.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img9, cax = cax9) 
+        img9.set_clim(min_value, max_value)
+
+        img10 = axs[2, 1].imshow(feature_maps[index[2], 1, :, :, index_feature_map])
+        axs[2, 1].get_xaxis().set_visible(False)
+        axs[2, 1].get_yaxis().set_visible(False)
+        divider10 = make_axes_locatable(axs[2, 1])
+        cax10 = divider10.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img10, cax = cax10) 
+        img10.set_clim(min_value, max_value)
+
+        img11 = axs[2, 2].imshow(feature_maps[index[2], 2, :, :, index_feature_map])
+        axs[2, 2].get_xaxis().set_visible(False)
+        axs[2, 2].get_yaxis().set_visible(False)
+        divider11 = make_axes_locatable(axs[2, 2])
+        cax11 = divider11.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img11, cax = cax11) 
+        img11.set_clim(min_value, max_value)
+
+        img12 = axs[2, 3].imshow(feature_maps[index[2], 3, :, :, index_feature_map])
+        axs[2, 3].get_xaxis().set_visible(False)
+        axs[2, 3].get_yaxis().set_visible(False)
+        divider12 = make_axes_locatable(axs[2, 3])
+        cax12     = divider12.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img12, cax = cax12) 
+        img12.set_clim(min_value, max_value)
+
+        img13 = axs[3, 0].imshow(feature_maps[index[3], 0, :, :, index_feature_map])
+        y_label = r'1800: vis = {} miles'.format(this_date_df.iloc[index[3]]['vis'])
+        axs[3, 0].set_ylabel(y_label)
+        divider13 = make_axes_locatable(axs[3, 0])
+        cax13 = divider13.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img13, cax = cax13) 
+        img13.set_clim(min_value, max_value)
+
+
+        img14 = axs[3, 1].imshow(feature_maps[index[3], 1, :, :, index_feature_map])
+        axs[3, 1].get_yaxis().set_visible(False)
+        divider14 = make_axes_locatable(axs[3, 1])
+        cax14 = divider14.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img14, cax = cax14) 
+        img14.set_clim(min_value, max_value)
+
+
+        img15 = axs[3, 2].imshow(feature_maps[index[3], 2, :, :, index_feature_map])
+        axs[3, 2].get_yaxis().set_visible(False)
+        divider15 = make_axes_locatable(axs[3, 2])
+        cax15 = divider15.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img15, cax = cax15) 
+        img15.set_clim(min_value, max_value)
+
+
+        img16 = axs[3, 3].imshow(feature_maps[index[3], 3, :, :, index_feature_map])
+        axs[3, 3].get_yaxis().set_visible(False)
+        divider16 = make_axes_locatable(axs[3, 3])
+        cax16 = divider16.append_axes("right", size = "5%", pad=0.1)
+        fig.colorbar(img16, cax = cax16) 
+        img16.set_clim(min_value, max_value)
+
+
+        fig.suptitle(r'{} {}'.format(feature_name, date),fontweight ="bold", fontsize=16)
+        fig.tight_layout()
+
+
+def feature_annual_timeseries_plot(feature_maps, df, year = None, feature_name = None):
+
+    index_feature_map = [idx for idx, element in enumerate(NETCDF_PREDICTOR_NAMES['All']) if element == feature_name]
+    index_feature_map = index_feature_map[0] 
+
+    this_year_df = df.groupby(by = 'year')
+    this_year_df = this_year_df.get_group(year)
+
+    group_by_leadtime = this_year_df.groupby(by = 'timecycle')
+
+
+    group0000    = group_by_leadtime.get_group('0000')
+    index0000    = group0000.index
+
+    group0600    = group_by_leadtime.get_group('0600')
+    index0600    = group0600.index
+
+    group1200    = group_by_leadtime.get_group('1200')
+    index1200    = group1200.index
+
+    group1800    = group_by_leadtime.get_group('1800')
+    index1800    = group1800.index
+
+
+
+
+    mean_value_0000_000, mean_value_0000_006, mean_value_0000_012, mean_value_0000_024 = [], [], [], []
+    mean_value_0600_000, mean_value_0600_006, mean_value_0600_012, mean_value_0600_024 = [], [], [], []
+    mean_value_1200_000, mean_value_1200_006, mean_value_1200_012, mean_value_1200_024 = [], [], [], []
+    mean_value_2400_000, mean_value_2400_006, mean_value_2400_012, mean_value_2400_024 = [], [], [], []
+    
+    for idx in index0000:
+        mean_value_0000_000.append(numpy.mean(feature_maps[idx, 0, :, :, index_feature_map]))
+        mean_value_0000_006.append(numpy.mean(feature_maps[idx, 1, :, :, index_feature_map]))
+        mean_value_0000_012.append(numpy.mean(feature_maps[idx, 2, :, :, index_feature_map]))
+        mean_value_0000_024.append(numpy.mean(feature_maps[idx, 3, :, :, index_feature_map]))
+
+    for idx in index0600:
+        mean_value_0600_000.append(numpy.mean(feature_maps[idx, 0, :, :, index_feature_map]))
+        mean_value_0600_006.append(numpy.mean(feature_maps[idx, 1, :, :, index_feature_map]))
+        mean_value_0600_012.append(numpy.mean(feature_maps[idx, 2, :, :, index_feature_map]))
+        mean_value_0600_024.append(numpy.mean(feature_maps[idx, 3, :, :, index_feature_map]))
+
+    for idx in index1200:
+        mean_value_1200_000.append(numpy.mean(feature_maps[idx, 0, :, :, index_feature_map]))
+        mean_value_1200_006.append(numpy.mean(feature_maps[idx, 1, :, :, index_feature_map]))
+        mean_value_1200_012.append(numpy.mean(feature_maps[idx, 2, :, :, index_feature_map]))
+        mean_value_1200_024.append(numpy.mean(feature_maps[idx, 3, :, :, index_feature_map]))
+
+    for idx in index1800:
+        mean_value_2400_000.append(numpy.mean(feature_maps[idx, 0, :, :, index_feature_map]))
+        mean_value_2400_006.append(numpy.mean(feature_maps[idx, 1, :, :, index_feature_map]))
+        mean_value_2400_012.append(numpy.mean(feature_maps[idx, 2, :, :, index_feature_map]))
+        mean_value_2400_024.append(numpy.mean(feature_maps[idx, 3, :, :, index_feature_map]))
+
+    min_value = numpy.min([mean_value_0000_000, mean_value_0000_006, mean_value_0000_012, mean_value_0000_024, 
+                            mean_value_0600_000, mean_value_0600_006, mean_value_0600_012, mean_value_0600_024, 
+                            mean_value_1200_000, mean_value_1200_006, mean_value_1200_012, mean_value_1200_024, 
+                            mean_value_2400_000, mean_value_2400_006, mean_value_2400_012, mean_value_2400_024])
+
+    max_value = numpy.max([mean_value_0000_000, mean_value_0000_006, mean_value_0000_012, mean_value_0000_024, 
+                            mean_value_0600_000, mean_value_0600_006, mean_value_0600_012, mean_value_0600_024, 
+                            mean_value_1200_000, mean_value_1200_006, mean_value_1200_012, mean_value_1200_024, 
+                            mean_value_2400_000, mean_value_2400_006, mean_value_2400_012, mean_value_2400_024])
+
+    plt.rcParams["axes.grid"] = False
+    fig, axs = plt.subplots(4, 1, figsize = (24, 24))
+
+    axs[0].plot(mean_value_0000_000)
+    axs[0].plot(mean_value_0000_006)
+    axs[0].plot(mean_value_0000_012)
+    axs[0].plot(mean_value_0000_024)
+    axs[0].set_facecolor('white')
+    axs[0].set_ylim(min_value, max_value)
+    axs[0].get_xaxis().set_visible(False)
+    axs[0].legend(['000', '006', '012', '024'], loc="upper right", fontsize = 12)
+    axs[0].set_ylabel('0000 Cycletime')
+    plt.setp(axs[0].spines.values(), color='k')
+    axs[0].set_title(r'{} {}'.format(feature_name, year),fontweight ="bold", fontsize=16)
+
+    axs[1].plot(mean_value_0600_000)
+    axs[1].plot(mean_value_0600_006)
+    axs[1].plot(mean_value_0600_012)
+    axs[1].plot(mean_value_0600_024)
+    axs[1].set_facecolor('white')
+    axs[1].set_ylim(min_value, max_value)
+    axs[1].get_xaxis().set_visible(False)
+    plt.setp(axs[1].spines.values(), color='k')
+    axs[1].set_ylabel('0600 Cycletime')
+
+
+    axs[2].plot(mean_value_1200_000)
+    axs[2].plot(mean_value_1200_006)
+    axs[2].plot(mean_value_1200_012)
+    axs[2].plot(mean_value_1200_024)
+    axs[2].set_facecolor('white')
+    axs[2].set_ylim(min_value, max_value)
+    axs[2].get_xaxis().set_visible(False)
+    plt.setp(axs[2].spines.values(), color='k')
+    axs[2].set_ylabel('1200 Cycletime')
+
+    axs[3].plot(mean_value_2400_000)
+    axs[3].plot(mean_value_2400_006)
+    axs[3].plot(mean_value_2400_012)
+    axs[3].plot(mean_value_2400_024)
+    axs[3].set_facecolor('white')
+    axs[3].set_ylim(min_value, max_value)
+    plt.setp(axs[3].spines.values(), color='k')
+    axs[3].set_ylabel('1800 Cycletime')
+
+    plt.xticks(list(range(len(group0000))), group0000['date'], rotation=65, fontsize = 10)
+    
+    #fig.tight_layout()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
