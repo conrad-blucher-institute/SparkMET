@@ -310,21 +310,29 @@ class input_dataframe_generater():
 
 
     def generate_revised_dataframe(self, netcef_nams_file_name, netcef_murs_file_name, targets):
-        netcdf_nam_names = []
+        
+        netcdf_nam_names, netcdf_mur_names = [], []
         for i, row in targets.iterrows():
             day_time_obs = row['Name'] 
-            timeseries_daily_names = self.return_daily_map_names_timeseries_list(netcef_nams_file_name, day_time_obs)
-            netcdf_nam_names.append(timeseries_daily_names[0])
+
+
+            timeseries_daily_nam_names, timeseries_daily_mur_names = self.return_daily_map_names_timeseries_list(netcef_nams_file_name, netcef_murs_file_name, day_time_obs)
+            
+            netcdf_nam_names.append(timeseries_daily_nam_names[0])
+            netcdf_mur_names.append(timeseries_daily_mur_names)
 
         targets['nam_nc_files_path'] =  netcdf_nam_names
         targets['nam_nc_files_path'] =  targets['nam_nc_files_path'].astype('object')
 
+        targets['mur_nc_files_path'] =  netcdf_mur_names
+        targets['mur_nc_files_path'] =  targets['mur_nc_files_path'].astype('object')
+
         targets = targets.drop(columns=['WXCODE'])
 
-        targets = targets.rename(columns={'Date_Time': 'date_time', "RoundTime":'round_time', "Date": "date", "Name":"date_cycletime", "VIS":"vis", "VIS_Cat": "vis_class"})
+        targets = targets.rename(columns={'Date_Time': 'date_time', "RoundTime":'round_time', "timecycle":'cycletime', "Date": "date", "Name":"date_cycletime", "VIS":"vis", "VIS_Cat": "vis_class"})
         targets.reset_index(inplace = True, drop = True)
 
-        targets = targets[['date_time', 'round_time', 'date_cycletime', 'date', 'cycletime', 'year', 'month', 'day', 'nam_nc_files_path', 'vis']] 
+        targets = targets[['date_time', 'round_time', 'date_cycletime', 'date', 'cycletime', 'year', 'month', 'day', 'nam_nc_files_path', 'mur_nc_files_path', 'vis']] 
         
         return targets
 
@@ -333,15 +341,31 @@ class input_dataframe_generater():
 
         namesplit = os.path.split(map_name)[-1]
         name      = namesplit.replace(namesplit[:5], '').replace(namesplit[18:], '')
- 
+
+        return name
+
+    def return_day_of_mur_name(self, map_name): 
+
+        namesplit = os.path.split(map_name)[-1]
+        name      = namesplit.replace(namesplit[:5], '').replace(namesplit[13:], '')
+        
+
         return name
 
 
-    def return_daily_map_names_timeseries_list(self, nc_file_names, day_time_obs):
 
-        output = [name for name in nc_file_names if self.return_day_of_map_name(name) == day_time_obs]
 
-        return output 
+    def return_daily_map_names_timeseries_list(self, nc_nam_file_names, nc_mur_file_names, day_time_obs):
+
+        mur_day_time = day_time_obs[:8]
+        
+        
+
+        nam_output = [name for name in nc_nam_file_names if self.return_day_of_map_name(name) == day_time_obs]
+        mur_output = [name for name in nc_mur_file_names if self.return_day_of_mur_name(name) == mur_day_time][0:4]
+
+        
+        return nam_output, mur_output
 
 
     def find_targets_within_time_range(self, first_date_string, last_date_string, target):
@@ -417,10 +441,9 @@ class input_dataframe_generater():
 
     def return_nam_mur_nc_file_names(self, target):
 
-            # Reading the directory of map data and check and remove those they are incomplete or target is NAN!
+        # Reading the directory of map data and check and remove those they are incomplete or target is NAN!
         netcef_nams_file_name = []   
         netcef_murs_file_name = []   
-
 
         for root, dirs, files in os.walk(self.img_path):
             dirs.sort()
@@ -446,7 +469,7 @@ class input_dataframe_generater():
 
 
         netcef_nams_file_name_leadtime, netcef_murs_file_name_leadtime = self.find_names_within_leadtime(netcef_nams_file_name, netcef_murs_file_name)
-
+        
         return netcef_nams_file_name_leadtime, netcef_murs_file_name_leadtime, target
 
 
@@ -491,6 +514,7 @@ class input_dataframe_generater():
             netcdf_mur_file_names2 = [16*[netcdf_mur_file_names[i]] for i in range(len(netcdf_mur_file_names))]
             netcdf_mur_file_names2 = list(itertools.chain.from_iterable(netcdf_mur_file_names2))
 
+
         return [netcdf_nam_file_names[k] for k in list(good_indices.index)], netcdf_mur_file_names2
 
 
@@ -511,3 +535,112 @@ class input_dataframe_generater():
         
 
         return data
+
+
+
+
+class DataAdopter(): 
+
+    def __init__(self, dataframe, vis_threshold = None, map_structure = None, predictor_names = None, lead_time_pred = None): 
+
+        self.dataframe            = dataframe
+        self.vis_threshold        = vis_threshold
+        self.map_structure        = map_structure
+        self.predictor_names      = predictor_names
+        self.lead_time_pred       = lead_time_pred
+
+
+    def __getitem__(self, idx): 
+
+        date_time  = self.dataset.loc[idx]['date_time']
+        round_time = self.dataset.loc[idx]['round_time']
+        date_cycletime = self.dataset.loc[idx]['date_cycletime']
+
+
+
+        nc_nam_timeseries_files_path_list = self.dataset.loc[idx]['nam_nc_files_path']
+        nam_timeseries_predictor_matrix   = self.read_nc_nam_maps(nc_nam_timeseries_files_path_list, self.predictor_names)
+
+
+        nc_mur_timeseries_files_path_list = self.dataset.loc[idx]['mur_nc_files_path']
+        mur_timeseries_predictor_matrix   = self.read_nc_nam_maps(nc_mur_timeseries_files_path_list, self.predictor_names)
+
+
+        
+        
+        visibility = self.dataset.loc[idx]['vis']
+
+        if visibility <= self.vis_threshold:
+            label = 1
+        else: 
+            label = 0 
+
+        sample = {}
+
+
+        return sample
+
+    def read_nc_nam_maps(self, netcdf_file_root_names, PREDICTOR_NAMES):
+
+        NETCDF_PREDICTOR_NAMES = PREDICTOR_NAMES
+
+        timeseries_predictor_matrix = None
+
+        if self.lead_time_pred == 6:
+            netcdf_file_006_names = netcdf_file_root_names[0:57] + '006_input.nc'
+            netcdf_file_names_list = [netcdf_file_root_names, netcdf_file_006_names]
+        elif self.lead_time_pred == 12:
+            netcdf_file_006_names = netcdf_file_root_names[0:57] + '006_input.nc'
+            netcdf_file_009_names = netcdf_file_root_names[0:57] + '009_input.nc'
+            netcdf_file_012_names = netcdf_file_root_names[0:57] + '012_input.nc'
+            netcdf_file_names_list = [netcdf_file_root_names, netcdf_file_006_names, netcdf_file_009_names, netcdf_file_012_names]
+        elif self.lead_time_pred == 24:
+            netcdf_file_006_names = netcdf_file_root_names[0:57] + '006_input.nc'
+            netcdf_file_012_names = netcdf_file_root_names[0:57] + '012_input.nc'
+            netcdf_file_024_names = netcdf_file_root_names[0:57] + '024_input.nc'
+            netcdf_file_names_list = [netcdf_file_root_names, netcdf_file_006_names, netcdf_file_012_names, netcdf_file_024_names]
+
+        for nc_file_name in netcdf_file_names_list:
+            
+            dataset_object = netCDF4.Dataset(nc_file_name)
+
+            predictor_matrix = None
+
+            for this_predictor_name in NETCDF_PREDICTOR_NAMES:
+                this_predictor_matrix = numpy.array(
+                    dataset_object.variables[this_predictor_name][:], dtype=float
+                )
+
+                this_predictor_matrix = numpy.expand_dims(
+                    this_predictor_matrix, axis=-1)
+
+                if predictor_matrix is None:
+                    predictor_matrix = this_predictor_matrix + 0.
+                else:
+                    predictor_matrix = numpy.concatenate(
+                        (predictor_matrix, this_predictor_matrix), axis=-1
+                    )
+
+
+            if self.map_structure == '3D':
+
+                if timeseries_predictor_matrix is None:
+                    timeseries_predictor_matrix = predictor_matrix + 0.
+
+                else:
+                    timeseries_predictor_matrix = numpy.concatenate(
+                        (timeseries_predictor_matrix, predictor_matrix), axis=-1
+                    )
+
+            elif self.map_structure == '4D':
+                #predictor_matrix = numpy.expand_dims(predictor_matrix, axis=0)
+
+                if timeseries_predictor_matrix is None:
+                    timeseries_predictor_matrix = predictor_matrix + 0.
+
+                else:
+                    timeseries_predictor_matrix = numpy.concatenate(
+                        (timeseries_predictor_matrix, predictor_matrix), axis=0
+                    )
+        
+        return timeseries_predictor_matrix
