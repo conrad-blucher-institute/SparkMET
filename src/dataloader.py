@@ -2,11 +2,10 @@ import copy
 import time
 import calendar
 import netCDF4
-import numpy
+import numpy as np
 import statistics as st 
 from numpy import savez_compressed
 from numpy import load
-import pandas
 import scipy.ndimage
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -19,17 +18,19 @@ plt.rc('xtick', labelsize=12)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=12)    # fontsize of the tick labels
 plt.rc('axes', labelsize=14)     # fontsize of the x and y labels 
 
-
+import torch 
+import torch.nn as nn
 
 
 MUR_coords = {'P3': [246, 115], 
 'P4': [225, 145]} 
 
+#NAM_coords = {'P1':[23, 6],
+#         'P2':[22, 8],
+#         'P3':[21, 10],
+#         'P4':[19, 12]} 
 NAM_coords = {'P1':[23, 6],
-         'P2':[22, 8],
-         'P3':[21, 10],
-         'P4':[19, 12]} 
-
+         'P2':[22, 8]} 
 
 # Variable names.
 NETCDF_X = 'x'
@@ -231,319 +232,139 @@ HOUR_PREDICTION_FORMAT = '[0-9][0-9][0-9]'
 
 
 
-def time_string_to_unix(time_string, time_format):
-    """Converts time from string to Unix format.
-    Unix format = seconds since 0000 UTC 1 Jan 1970.
-    :param time_string: Time string.
-    :param time_format: Format of time string (example: "%Y%m%d" or
-        "%Y-%m-%d-%H%M%S").
-    :return: unix_time_sec: Time in Unix format.
-    """
-    return calendar.timegm(time.strptime(time_string, time_format))
-
-
-def time_unix_to_string(unix_time_sec, time_format):
-    """Converts time from Unix format to string.
-    Unix format = seconds since 0000 UTC 1 Jan 1970.
-    :param unix_time_sec: Time in Unix format.
-    :param time_format: Desired format of time string (example: "%Y%m%d" or
-        "%Y-%m-%d-%H%M%S").
-    :return: time_string: Time string.
-    """
-    return time.strftime(time_format, time.gmtime(unix_time_sec))
-
-
-def _nc_file_name_to_date(netcdf_file_name):
-    """Parses date from name of image (NetCDF) file.
-    :param netcdf_file_name: Path to input file.
-    :return: date_string: Date (format "yyyymmdd").
-    """
-    pathless_file_name = os.path.split(netcdf_file_name)[-1]
-    date_string = pathless_file_name.replace(pathless_file_name[0:5], '').replace(
-        pathless_file_name[-18:], '')
-    # Verify.
-    time_string_to_unix(time_string=date_string, time_format=DATE_FORMAT)
-    return date_string
-
-def _nc_file_name_to_timecycle(netcdf_file_name):
-    """Parses date from name of image (NetCDF) file.
-    :param netcdf_file_name: Path to input file.
-    :return: time-cycle prediction.
-    """
-    pathless_file_name = os.path.split(netcdf_file_name)[-1]
-    timecycle_string = pathless_file_name.replace(pathless_file_name[0:14], '').replace(
-        pathless_file_name[-13:], '')
-    # Verify.
-    #time_string_to_unix(time_string=timecycle_string, time_format=TIME_CYCLE_FORMAT)
-    return timecycle_string
-
-def _nc_file_name_to_hourprediction(netcdf_file_name):
-    """Parses date from name of image (NetCDF) file.
-    :param netcdf_file_name: Path to input file.
-    :return: time-cycle prediction.
-    """
-    pathless_file_name = os.path.split(netcdf_file_name)[-1]
-    hourpredic_string = pathless_file_name.replace(pathless_file_name[0:19], '').replace(
-        pathless_file_name[-9:], '')
-    return hourpredic_string
-
-
 
 
 class input_dataframe_generater():
-
-    def __init__(self, img_path = None, target_path = None, first_date_string = None, last_date_string = None, lead_time_pred = None):
+    
+    def __init__(self, img_path = None, target_path = None, first_date_string = None, last_date_string = None):
 
         self.img_path          = img_path
         self.first_date_string = first_date_string
         self.last_date_string  = last_date_string
-        self.lead_time_pred    = lead_time_pred
+
 
 
         if img_path is None: 
             self.img_path = DEFAULT_IMAGE_DIR_NAME
-
         if target_path is None: 
-            target_path = DEFAULT_TARGET_DIR_NAME
-
-        CSVfile = '{0:s}/Target.csv'.format(target_path)
-        self.target  = self.reading_csv_target_file(CSVfile)
+            self.target_path = DEFAULT_TARGET_DIR_NAME
 
 
-    def return_dataframe(self):
 
-        targets_within_time_range = self.find_targets_within_time_range(first_date_string = self.first_date_string, last_date_string = self.last_date_string, target = self.target)
-        netcef_nams_file_name, netcef_murs_file_name, targets_cleaned = self.matual_map_target_daily_cleaning(targets_within_time_range)
-        output = self.generate_revised_dataframe(netcef_nams_file_name, netcef_murs_file_name, targets_cleaned)
 
+    def dataframe_generation(self):
+        start_time = time.time()
+        # cleaning the target dataset: 
+        target_dataset_cleaned = self.target_dataset_cleaning(self.first_date_string, 
+                                                                self.last_date_string)
+
+        # removing the days with incomplete input observations (for each day there should be 149 inpu netcdf files in the folder): 
+        output = self.check_target_input_consistency(target_dataset_cleaned) 
+        print("---Generating data: %s seconds ---" % (time.time() - start_time))
         return output
 
-
-    def generate_revised_dataframe(self, netcef_nams_file_name, netcef_murs_file_name, targets):
-        
-        netcdf_nam_names, netcdf_mur_names = [], []
-        for i, row in targets.iterrows():
-            day_time_obs = row['Name'] 
-
-            timeseries_daily_nam_names, timeseries_daily_mur_names = self.return_daily_map_names_timeseries_list(netcef_nams_file_name, netcef_murs_file_name, day_time_obs)
-            
-            netcdf_nam_names.append(timeseries_daily_nam_names[0])
-            netcdf_mur_names.append(timeseries_daily_mur_names)
-
-        targets['nam_nc_files_path'] =  netcdf_nam_names
-        targets['nam_nc_files_path'] =  targets['nam_nc_files_path'].astype('object')
-
-        targets['mur_nc_files_path'] =  netcdf_mur_names
-        targets['mur_nc_files_path'] =  targets['mur_nc_files_path'].astype('object')
-
-        targets = targets.drop(columns=['WXCODE'])
-
-        targets = targets.rename(columns={'Date_Time': 'date_time', "RoundTime":'round_time', "timecycle":'cycletime', "Date": "date", "Name":"date_cycletime", "VIS":"vis", "VIS_Cat": "vis_class"})
-        targets.reset_index(inplace = True, drop = True)
-
-        targets = targets[['date_time', 'round_time', 'date_cycletime', 'date', 'cycletime', 'year', 'month', 'day', 'nam_nc_files_path', 'mur_nc_files_path', 'vis']] 
-        
-        return targets
-
-
-    def return_day_of_map_name(self, map_name): 
-
-        namesplit = os.path.split(map_name)[-1]
-        name      = namesplit.replace(namesplit[:5], '').replace(namesplit[18:], '')
-
-        return name
-
-    def return_day_of_mur_name(self, map_name): 
-
-        namesplit = os.path.split(map_name)[-1]
-        name      = namesplit.replace(namesplit[:5], '').replace(namesplit[13:], '')
-        
-
-        return name
-
-
-
-
-    def return_daily_map_names_timeseries_list(self, nc_nam_file_names, nc_mur_file_names, day_time_obs):
-
-        mur_day_time = day_time_obs[:8]
-        
-        
-
-        nam_output = [name for name in nc_nam_file_names if self.return_day_of_map_name(name) == day_time_obs]
-        mur_output = [name for name in nc_mur_file_names if self.return_day_of_mur_name(name) == mur_day_time][0:4]
-
-        
-        return nam_output, mur_output
-
-
-    def find_targets_within_time_range(self, first_date_string, last_date_string, target):
-        """Finds image (NetCDF) files in the given date range.
-        :param first_date_string: First date ("yyyymmdd") in range.
-        :param last_date_string: Last date ("yyyymmdd") in range.
-        :param image_dir_name: Name of directory with image (NetCDF) files.
-        :return: netcdf_file_names: 1-D list of paths to image files.
+    def target_dataset_cleaning(self, first_date_string, last_date_string):
         """
-        # check the target and return the desierd target index:
-        Dates = target['Date'].values
-        good_indices_target = numpy.where(numpy.logical_and(
-            Dates >= int(first_date_string),
-            Dates <= int(last_date_string)
+            1. select time range 
+            2. remove null observations
+            3. remove days with less than 4 target observations 
+        """
+        csv_file_name = '{0:s}/Target.csv'.format(self.target_path)
+        target = pd.read_csv(csv_file_name, header=0, sep=',')
+        #start_time = time.time()
+
+        target['timecycle'] = target['Name'].apply(lambda x: x[9:])
+        target['year']      = target['Name'].apply(lambda x: x[:4])
+        target['month']     = target['Name'].apply(lambda x: x[4:6])
+        target['day']       = target['Name'].apply(lambda x: x[6:8])
+
+
+        # 1. select time range: 
+        dates = target['Date'].values
+        good_indices_target = np.where(np.logical_and(
+            dates >= int(first_date_string),
+            dates <= int(last_date_string)
         ))[0]
 
         target = target.take(good_indices_target)
         target.reset_index(inplace = True, drop = True)
 
-        return target
-
-
-    def matual_map_target_daily_cleaning(self, target):
-        """
-        Nan removal 
-        days with less than 4 lead time observations removal
-        """
-        # 
-
-        target_notnull                                             = self.null_target_detection(target) 
-        target_notnull_full_day_obs                                = self.remove_days_with_incomplete_obs(target_notnull)
-        netcef_nams_file_name, netcef_murs_file_name, target_outpu = self.return_nam_mur_nc_file_names(target_notnull_full_day_obs)
-
-            
-        return netcef_nams_file_name, netcef_murs_file_name, target_outpu
-
-
-    def null_target_detection(self, target):
-        # Reading Target data and list all NAM index to check and remove them plus corresponding map data:
+        # 2. remove null observations
         nan_targets_index = target[target['VIS_Cat'].isnull().values].index.tolist()
-
-
-        # delete null rows
-        target = target.drop(index = nan_targets_index)
+        indexes_Not_null = set(range(target.shape[0])) - set(nan_targets_index)
+        target = target.take(list(indexes_Not_null)) 
         target.reset_index(inplace = True, drop = True)
 
-        # delete rows with less than 4 lead-time observations per day: 
-        for d in target['Date']:
-            if target.loc[target.Date == d, 'Date'].count() < 4:
-                target = target.drop(target.loc[target.Date == d, 'Date'].index)
+        # 3. delete rows with less than 4 lead-time observations per day: 
+        target = target[target['Date'].map(target['Date'].value_counts()) == 4]
         target.reset_index(inplace = True, drop = True)
 
+        target = target.drop(columns=['WXCODE'])
+        target = target.drop(columns=['VIS_Cat'])
 
-        return target
-
-    def remove_days_with_incomplete_obs(self, target): 
-
-        for root, dirs, files in os.walk(self.img_path):
-            dirs.sort()
-            files.sort()
-
-            if len(files) < 149 and len(files) != 0:
-                if files[0].endswith(".nc"):
-                    namesplit = os.path.split(files[0])[-1]
-                    match_name = namesplit.replace(namesplit[:5], '').replace(namesplit[13:], '')
-                    #print(('The expected maps is 149 which there are "{0}" maps for {1} day!').format(len(files), match_name))
-                    target = target.drop(target[target.Date == int(match_name)].index)
-                    #print('Removed the corresponding target values for days with incomplete data!')
-                    #print('=====================================================================')
+        target = self.binarize_onehot_label_df(target)
 
         return target
 
 
-    def return_nam_mur_nc_file_names(self, target):
+    def check_target_input_consistency(self, target):
+        #start_time = time.time()
 
-        # Reading the directory of map data and check and remove those they are incomplete or target is NAN!
-        netcef_nams_file_name = []   
-        netcef_murs_file_name = []   
-
-        for root, dirs, files in os.walk(self.img_path):
+        hour_prediction_names = '000'
+        nam_file_names, mur_file_names, files_datecycle_string = [], [], []
+        for (root, dirs, files) in os.walk(DEFAULT_IMAGE_DIR_NAME):
             dirs.sort()
             files.sort()
-
-            
             if len(files) == 149:
-                namesplit     = os.path.split(files[0])[-1]
-                nc_file_names = namesplit.replace(namesplit[:5], '').replace(namesplit[13:], '')
-                
-                if int(nc_file_names) in list(target['Date'].values):   #(foldercondition is True):
-                    for name in files:
-                        namesplit = os.path.split(name)[-1]
-                        namOrmur = namesplit.replace(namesplit[4:], '')
-                        if (namOrmur == 'murs'):
-                            name = root +'/'+ name
-                            netcef_murs_file_name.append(name)
-                            netcef_murs_file_name.sort()
-                        elif (namOrmur == 'maps'):
-                            name = root +'/'+ name
-                            netcef_nams_file_name.append(name)
-                            netcef_nams_file_name.sort()
+                for file in files: 
+                    pathless_file_name = os.path.split(file)[-1]
 
+                    date_string        = pathless_file_name.replace(pathless_file_name[0:5], '').replace(pathless_file_name[-18:], '')
+                    datecycle_string   = pathless_file_name.replace(pathless_file_name[0:5], '').replace(pathless_file_name[-13:], '')
+                    hourpredic_string  = pathless_file_name.replace(pathless_file_name[0:19], '').replace(pathless_file_name[-9:], '')
 
-        netcef_nams_file_name_leadtime, netcef_murs_file_name_leadtime = self.find_names_within_leadtime(netcef_nams_file_name, netcef_murs_file_name)
+                    namOrmur           = pathless_file_name.replace(pathless_file_name[4:], '')
+
+                    if int(date_string) in target['Date'].values:
+
+                        if  hourpredic_string == hour_prediction_names and (namOrmur == 'maps'):
+                            nam_file_names.append(os.path.join(root, file))
+                            nam_file_names.sort()
+
+                        elif (namOrmur == 'murs'):
+                            mur_file_names.append([os.path.join(root, file)]*4)
+                            mur_file_names.sort()
+                        
+                        files_datecycle_string.append(datecycle_string)
+
+        mur_file_names = np.concatenate(mur_file_names)
         
-        return netcef_nams_file_name_leadtime, netcef_murs_file_name_leadtime, target
+        target = target[target['Name'].isin(files_datecycle_string)]
 
+        target['nam_nc_files_path'] =  nam_file_names
+        target['mur_nc_files_path'] =  mur_file_names
+        target = target.rename(columns={'Date_Time': 'date_time', "RoundTime":'round_time', "timecycle":'cycletime', "Date": "date", "Name":"date_cycletime", "VIS":"vis", "VIS_Cat": "vis_class"})
+        target = target[['date_time', 'round_time', 'date_cycletime', 'date', 'cycletime', 'year', 'month', 'day', 'nam_nc_files_path', 'mur_nc_files_path', 'vis', 'vis_class', 'vis_category']] 
+        target.reset_index(inplace = True, drop = True)
+        #print("--- %s seconds ---" % (time.time() - start_time))
 
-    def find_names_within_leadtime(self, netcdf_nam_file_names, netcdf_mur_file_names):
-
-        """Depend on the time prediction this function just select the name of selected maps:
-        for example in this case, the time prediction 000, 003 and 006 hour has been selected.
-        """
-        file_date_strings = [_nc_file_name_to_hourprediction(f) for f in netcdf_nam_file_names]
-        file_date_strings = pandas.DataFrame(file_date_strings, columns = ['str'])
-
-        if self.lead_time_pred == 6: 
-            hour_prediction_names = ['000', '006']
-            good_indices = file_date_strings[
-                (file_date_strings['str'] == hour_prediction_names[0]) |
-                (file_date_strings['str'] == hour_prediction_names[1]) ]
-
-            netcdf_mur_file_names2 = [8*[netcdf_mur_file_names[i]] for i in range(len(netcdf_mur_file_names))]
-            netcdf_mur_file_names2 = list(itertools.chain.from_iterable(netcdf_mur_file_names2))
-
-            
-        elif self.lead_time_pred == 12: 
-            hour_prediction_names = ['000', '006', '009', '012']
-            good_indices = file_date_strings[
-                (file_date_strings['str'] == hour_prediction_names[0]) |
-                (file_date_strings['str'] == hour_prediction_names[1]) |
-                (file_date_strings['str'] == hour_prediction_names[2]) |
-                (file_date_strings['str'] == hour_prediction_names[3])]
-
-            netcdf_mur_file_names2 = [16*[netcdf_mur_file_names[i]] for i in range(len(netcdf_mur_file_names))]
-            netcdf_mur_file_names2 = list(itertools.chain.from_iterable(netcdf_mur_file_names2))
-
-
-        elif self.lead_time_pred == 24: 
-            hour_prediction_names = ['000', '006', '012', '024']
-            good_indices = file_date_strings[
-                (file_date_strings['str'] == hour_prediction_names[0]) |
-                (file_date_strings['str'] == hour_prediction_names[1]) |
-                (file_date_strings['str'] == hour_prediction_names[2]) |
-                (file_date_strings['str'] == hour_prediction_names[3])]
-
-            netcdf_mur_file_names2 = [16*[netcdf_mur_file_names[i]] for i in range(len(netcdf_mur_file_names))]
-            netcdf_mur_file_names2 = list(itertools.chain.from_iterable(netcdf_mur_file_names2))
-
-
-        return [netcdf_nam_file_names[k] for k in list(good_indices.index)], netcdf_mur_file_names2
-
-
-    def reading_csv_target_file(self, csv_file_name):
-
-        data = pandas.read_csv(csv_file_name, header=0, sep=',')
-        year, month, day, timecycle = [], [], [], []
-        for i in range(len(data)):
-            year.append(data.iloc[i]['Name'][:4]) 
-            month.append(data.iloc[i]['Name'][4:6])
-            day.append(data.iloc[i]['Name'][6:8])
-            timecycle.append(data.iloc[i]['Name'][9:]) 
-
-        data['timecycle'] = timecycle
-        data['year']      = year
-        data['month']     = month
-        data['day']       = day
+        return target
         
+    def binarize_onehot_label_df(self, target):
+        #label_col = self.dataframe['vis']
+        target['vis_category']  = target['VIS'].apply(lambda x: 'fog' if x <= 1 else 'non_fog')
 
-        return data
+        target['vis_class'] = target['vis_category'].astype('category')
+        encode_map = {
+            'fog' : 1,
+            'non_fog': 0
+
+        }
+
+        target['vis_class'].replace(encode_map, inplace = True)
+
+        return target
+
 
 
 class return_train_variable_mean_std():
@@ -590,14 +411,13 @@ class return_train_variable_mean_std():
             
                     dataset_object = netCDF4.Dataset(nc_file_name)
 
-                    this_predictor_matrix = numpy.array(
+                    this_predictor_matrix = np.array(
                         dataset_object.variables[name][:], dtype = float)
 
 
-                    this_predictor_leadtime_mean = numpy.mean(this_predictor_matrix)
+                    this_predictor_leadtime_mean = np.mean(this_predictor_matrix)
 
                     list_of_mean.append(this_predictor_leadtime_mean)
-
 
             this_predictor_mean = st.mean(list_of_mean)
             this_predictor_std  = st.pstdev(list_of_mean)
@@ -614,13 +434,13 @@ def split_data_train_valid_test(dataset, year_split_dict = None):
     test_years  = year_split_dict['test']
 
 
-    train_df = dataset[dataset['year'].isin([train_years])]
+    train_df = dataset[dataset['year'].isin(train_years)]
     train_df.reset_index(inplace = True, drop=True)
 
-    valid_df = dataset[dataset['year'].isin([valid_years])]
+    valid_df = dataset[dataset['year'].isin(valid_years)]
     valid_df.reset_index(inplace = True, drop=True)
 
-    test_df  = dataset[dataset['year'].isin([test_years])]
+    test_df  = dataset[dataset['year'].isin(test_years)]
     test_df.reset_index(inplace = True, drop=True)
 
 
@@ -630,15 +450,13 @@ def split_data_train_valid_test(dataset, year_split_dict = None):
 
 class DataAdopter(): 
 
-    def __init__(self, dataframe, vis_threshold = None, 
-                                map_structure = None, 
+    def __init__(self, dataframe, map_structure = None, 
                                 predictor_names = None, 
                                 lead_time_pred = None, 
                                 mean_std_dict  = None,
                                 point_geolocation_dic = None): 
 
         self.dataframe            = dataframe
-        self.vis_threshold        = vis_threshold
         self.map_structure        = map_structure
         self.predictor_names      = predictor_names
         self.lead_time_pred       = lead_time_pred
@@ -646,36 +464,51 @@ class DataAdopter():
         self.point_geolocation_dic= point_geolocation_dic
 
 
+        #self.dataframe       = self.binarize_onehot_label_df()
+        self.label_onehot_df = pd.get_dummies(self.dataframe.vis_category)
+        print(f"============ Number of Fog Cases: {self.dataframe['vis_category'].value_counts()['fog']} ")
+        
+        
+    def __len__(self):
+        return len(self.dataframe)
+
     def __getitem__(self, idx): 
 
         # reading the data date and cycletime: 
-        date_time      = self.dataset.loc[idx]['date_time']
-        round_time     = self.dataset.loc[idx]['round_time']
-        date_cycletime = self.dataset.loc[idx]['date_cycletime']
+        date_time      = self.dataframe.loc[idx]['date_time']
+        round_time     = self.dataframe.loc[idx]['round_time']
+        date_cycletime = self.dataframe.loc[idx]['date_cycletime']
+        visibility     = self.dataframe.loc[idx]['vis']
 
 
         # reading the nam map
-        nc_nam_timeseries_files_path_list = self.dataset.loc[idx]['nam_nc_files_path']
+        nc_nam_timeseries_files_path_list = self.dataframe.loc[idx]['nam_nc_files_path']
         nam_timeseries_predictor_matrix   = self.read_nc_nam_maps(nc_nam_timeseries_files_path_list)
-
+        nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix.values#.flatten()
+        nam_timeseries_predictor_matrix   = torch.as_tensor(nam_timeseries_predictor_matrix, dtype = torch.float32)
         # reading mur map 
         #nc_mur_timeseries_files_path_list = self.dataset.loc[idx]['mur_nc_files_path']
         #mur_timeseries_predictor_matrix   = self.read_nc_nam_maps(nc_mur_timeseries_files_path_list)
 
         #=============================================== reading the target visibility =======================================#
-        visibility = self.dataset.loc[idx]['vis']
+        onehotlabel = self.label_onehot_df.loc[idx]
+        onehotlabel = torch.as_tensor(onehotlabel, dtype=torch.long)
 
-        # binarize the visibility to a class
-        if visibility <= self.vis_threshold:
-            label = 1
-        else: 
-            label = 0 
 
+        label = self.dataframe.loc[idx]['vis_class'] 
+        label = torch.as_tensor(label, dtype=torch.long)#dtype = torch.float32
+        #label = torch.unsqueeze(label, dim=0)
         #=============================================== return the sample =======================================#
-        sample = {"date_time": date_time, "round_time": round_time, "date_cycletime": date_cycletime, "input": nam_timeseries_predictor_matrix, "label": label}
-
+        sample = {"input": nam_timeseries_predictor_matrix, 
+                                        "onehotlabel":onehotlabel, 
+                                        "label_class": label, 
+                                        "date_time": date_time, 
+                                        "round_time": round_time, 
+                                        "date_cycletime": date_cycletime,  
+                                        "vis": visibility}
 
         return sample
+        #return  nam_timeseries_predictor_matrix, label
 
     def read_nc_nam_maps(self, netcdf_file_root_names):
 
@@ -713,11 +546,11 @@ class DataAdopter():
             predictor_matrix = None
 
             for this_predictor_name in NETCDF_PREDICTOR_NAMES:
-                this_predictor_matrix = numpy.array(
+                this_predictor_matrix = np.array(
                     dataset_object.variables[this_predictor_name][:], dtype=float
                 )
 
-                this_predictor_matrix = numpy.expand_dims(
+                this_predictor_matrix = np.expand_dims(
                     this_predictor_matrix, axis=-1)
                 
                 this_predictor_mean  = self.mean_std_dict[this_predictor_name][0]
@@ -728,14 +561,21 @@ class DataAdopter():
                 if predictor_matrix is None:
                     predictor_matrix = this_predictor_matrix + 0.
                 else:
-                    predictor_matrix = numpy.concatenate(
+                    predictor_matrix = np.concatenate(
                         (predictor_matrix, this_predictor_matrix), axis=-1
                     )
 
             if self.map_structure == '1D':
 
-                lead_time_pred = lead_time_steps[idx]
-                timeseries_predictor_matrix = self.return_tabular_data(predictor_matrix, lead_time_pred) 
+                time_steps = lead_time_steps[idx]
+                this_timeseries_predictor_matrix = self.return_tabular_data(predictor_matrix, time_steps) 
+
+                if timeseries_predictor_matrix is None:
+                    timeseries_predictor_matrix = this_timeseries_predictor_matrix
+
+                else:
+                    timeseries_predictor_matrix = pd.concat((
+                        timeseries_predictor_matrix, this_timeseries_predictor_matrix), axis=1)
 
             elif self.map_structure == '2D' or self.map_structure == '3D':
 
@@ -743,7 +583,7 @@ class DataAdopter():
                     timeseries_predictor_matrix = predictor_matrix + 0.
 
                 else:
-                    timeseries_predictor_matrix = numpy.concatenate(
+                    timeseries_predictor_matrix = np.concatenate(
                         (timeseries_predictor_matrix, predictor_matrix), axis=-1
                     )
 
@@ -753,33 +593,32 @@ class DataAdopter():
                     timeseries_predictor_matrix = predictor_matrix + 0.
 
                 else:
-                    timeseries_predictor_matrix = numpy.concatenate(
+                    timeseries_predictor_matrix = np.concatenate(
                         (timeseries_predictor_matrix, predictor_matrix), axis=0
                     )
         
         return timeseries_predictor_matrix
 
 
-    def return_tabular_data(self, nam_predictor_matrix):
+    def return_tabular_data(self, nam_predictor_matrix, time_steps):
             
         output_dfs = []
 
         for key in self.point_geolocation_dic:
             i = self.point_geolocation_dic[key][0]
             j = self.point_geolocation_dic[key][1]
-            
-            this_point_df = pd.DataFrame()
+            this_point_df = pd.DataFrame() 
+            for idx in range(nam_predictor_matrix.shape[3]):
 
-            for i in range(nam_predictor_matrix.shape[2]):
-                this_predictor_matrix = nam_predictor_matrix.shape[:, :, i] 
+                this_predictor_matrix = nam_predictor_matrix[0, :, :, idx] 
                 feature_value         = this_predictor_matrix[i, j]
-                feature_name          = self.predictor_names[i] + '_' + key
+                feature_name          = self.predictor_names[idx] + '_' + key + '_' + time_steps
 
                 this_point_df.at[0, feature_name] = feature_value
             
             output_dfs.append(this_point_df)
         
-        output = pandas.concat(output_dfs, axis=1)
+        output = pd.concat(output_dfs, axis=1)
 
         return output 
         

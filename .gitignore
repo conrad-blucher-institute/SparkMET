@@ -5,3 +5,10 @@
 *.ali
 __pycache__
 .DS_Store
+
+.ipynb_checkpoints
+
+
+./EXPs
+.EXPs
+EXPs
