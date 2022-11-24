@@ -261,7 +261,7 @@ class input_dataframe_generater():
 
         # removing the days with incomplete input observations (for each day there should be 149 inpu netcdf files in the folder): 
         output = self.check_target_input_consistency(target_dataset_cleaned) 
-        print("---Generating data: %s seconds ---" % (time.time() - start_time))
+        #print("---Generating data: %s seconds ---" % (time.time() - start_time))
         return output
 
     def target_dataset_cleaning(self, first_date_string, last_date_string):
@@ -467,7 +467,7 @@ class DataAdopter():
 
         #self.dataframe       = self.binarize_onehot_label_df()
         self.label_onehot_df = pd.get_dummies(self.dataframe.vis_category)
-        print(f"============ Number of Fog Cases: {self.dataframe['vis_category'].value_counts()['fog']} ")
+        
         
         
     def __len__(self):

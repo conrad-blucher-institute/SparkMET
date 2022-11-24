@@ -18,7 +18,15 @@ import math
 from math import log
 import torch.nn as nn
 
-
+def print_report(train_df, valid_df, test_df):
+    train_fog_cases = train_df['vis_category'].value_counts()['fog']
+    valid_fog_cases = valid_df['vis_category'].value_counts()['fog']
+    test_fog_cases = test_df['vis_category'].value_counts()['fog']
+    print("#================================ Summary of Dataset =================================#")
+    print(f"number of training samples:   {train_df.shape[0]} | number of training fog cases:   {train_fog_cases}")
+    print(f"number of validation samples: {valid_df.shape[0]} | number of validation fog cases: {valid_fog_cases}")
+    print(f"number of test samples:       {test_df.shape[0]} | number of test fog cases:       {test_fog_cases}")
+    print("#=====================================================================================#")
 
 class EarlyStopping():
     def __init__(self, tolerance=30, min_delta=0):
@@ -74,10 +82,6 @@ def save_loss_df(loss_stat, loss_df_name, loss_fig_name):
 
 
 
-
-
-
-
 class Evaluation(): 
     def __init__(self, ytrue, ypred, report_file_name = None, figure_name = None):
         self.ytrue     = ytrue
@@ -90,7 +94,7 @@ class Evaluation():
 
         ypred_class = np.argmax(self.ypred, axis = 1)
 
-        Hit, miss, FA, CR = confusion_matrix(self.ytrue, ypred_class).ravel()
+        CR, FA, miss, Hit= confusion_matrix(self.ytrue, ypred_class).ravel()
         POD   = Hit/(Hit+miss)
         F     = FA/(FA+CR)
         FAR   = FA/(Hit+FA)
@@ -100,12 +104,6 @@ class Evaluation():
         ORSS  = ((Hit*CR)-(FA*miss))/((Hit*CR)+(FA*miss))
         CSS   = ((Hit*CR)-(FA*miss))/((Hit+FA)*(miss+CR))
 
-        
-        if POD == 1.0:
-            POD = 0.999  
-        if F <= 0:
-            F = 0.009 
-        
         #SEDI = (log(F) - log(POD) - log(1-F) + log(1-POD))/(log(F) + log(POD) + log(1-F) + log(1-POD))
 
         output = [Hit, miss, FA, CR, POD, F, FAR, CSI, PSS, HSS, ORSS, CSS]
@@ -115,8 +113,8 @@ class Evaluation():
             print(f"Miss: {miss}", file=f)
             print(f"FA: {FA}", file=f)
             print(f"CR: {CR}", file=f)
-            print(f"POD: {F}", file=f)
-            print(f"F: {miss}", file=f)
+            print(f"POD: {POD}", file=f)
+            print(f"F: {F}", file=f)
             print(f"FAR: {FAR}", file=f)
             print(f"CSI: {CSI}", file=f)
             print(f"PSS: {PSS}", file=f)
@@ -129,8 +127,8 @@ class Evaluation():
         return output
         
     def ruc_curve_plot(self): 
-        ypred_fog = self.ypred[:, -1] 
-        fpr, tpr, thresholds = roc_curve(self.ytrue, ypred_fog, pos_label=2)
+        ypred_fog = self.ypred[:, 1] 
+        fpr, tpr, thresholds = roc_curve(self.ytrue, ypred_fog)
 
         ROC_AUC = auc(fpr, tpr)     
         
@@ -138,10 +136,10 @@ class Evaluation():
         plt.plot([0, 1], [0, 1], 'k--')
         plt.xlim([-0.005, 1.0])
         plt.ylim([0.0, 1.005])
-        plt.xlabel('FAR (probability of false detection)',  fontsize=20)
-        plt.ylabel('POD (probability of detection)', fontsize=20)
+        plt.xlabel('FAR (probability of false detection)',  fontsize=16)
+        plt.ylabel('POD (probability of detection)', fontsize=16)
         title_string = 'ROC curve (AUC = {0:.3f})'.format(ROC_AUC)
-        plt.title(title_string, fontsize=20)
+        plt.title(title_string, fontsize=16)
         plt.savefig(self.figure_name, dpi = 300)
 
     def BS_BSS_calc(self): 
@@ -221,6 +219,8 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
             _, train_out, _ = model(input_train)
             train_out = torch.exp(train_out)
             train_out = train_out.detach().cpu().numpy()
+
+
             train_fog_preds.append(train_out[:, 1])
             train_nonfog_preds.append(train_out[:, 0])
 
@@ -229,8 +229,12 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
         train_cycletimes = np.concatenate(train_cycletimes)
         train_visibilitys = np.concatenate(train_visibilitys)
         train_label_trues = np.concatenate(train_label_trues)
-        train_fog_preds = np.concatenate(train_fog_preds)
+        train_fog_preds    = np.concatenate(train_fog_preds)
         train_nonfog_preds = np.concatenate(train_nonfog_preds)
+
+        train_ypred = np.empty([train_fog_preds.shape[0], 2], dtype = float)
+        train_ypred[:,1] = train_fog_preds
+        train_ypred[:,0] = train_nonfog_preds
 
         train_output = pd.DataFrame()
         train_output['date_time'] = train_date_times
@@ -243,7 +247,7 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
 
         train_output.to_csv(train_csv_file)
 
-        train_eval_obj = Evaluation(train_label_trues, train_out, report_file_name = train_report, figure_name = train_roc_curve_fig)
+        train_eval_obj = Evaluation(train_label_trues, train_ypred, report_file_name = train_report, figure_name = train_roc_curve_fig)
         train_evaluation_metrics = train_eval_obj.confusion_matrix_calc()
         _ = train_eval_obj.ruc_curve_plot()
 
@@ -283,6 +287,11 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
         valid_fog_preds = np.concatenate(valid_fog_preds)
         valid_nonfog_preds = np.concatenate(valid_nonfog_preds)
 
+        valid_ypred = np.empty([valid_fog_preds.shape[0], 2], dtype = float)
+        valid_ypred[:,1] = valid_fog_preds
+        valid_ypred[:,0] = valid_nonfog_preds
+
+
         valid_output = pd.DataFrame()
         valid_output['date_time'] = valid_date_times
         valid_output['round_time'] = valid_round_times
@@ -294,7 +303,7 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
 
         valid_output.to_csv(valid_csv_file)
 
-        valid_eval_obj = Evaluation(valid_label_trues, pred_val, report_file_name = valid_report, figure_name = valid_roc_curve_fig)
+        valid_eval_obj = Evaluation(valid_label_trues, valid_ypred, report_file_name = valid_report, figure_name = valid_roc_curve_fig)
         valid_evaluation_metrics = valid_eval_obj.confusion_matrix_calc()
         _ = valid_eval_obj.ruc_curve_plot()
 
@@ -315,8 +324,6 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
 
             test_label_true = sample['label_class']
             test_label_trues.append(test_label_true)
-            
-
 
             input_test      = sample['input'].to(0)
             _, pred_test, _ = model(input_test)
@@ -334,6 +341,10 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
         test_fog_preds = np.concatenate(test_fog_preds)
         test_nonfog_preds = np.concatenate(test_nonfog_preds)
 
+        test_ypred = np.empty([test_fog_preds.shape[0], 2], dtype = float)
+        test_ypred[:,1] = test_fog_preds
+        test_ypred[:,0] = test_nonfog_preds
+
         test_output = pd.DataFrame()
         test_output['date_time'] = test_date_times
         test_output['round_time'] = test_round_times
@@ -343,10 +354,9 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
         test_output['fog_preb'] = test_fog_preds
         test_output['nonfog_preb'] = test_nonfog_preds
 
-
         test_output.to_csv(test_csv_file)
 
-        test_eval_obj = Evaluation(test_label_trues, pred_test, report_file_name = test_report, figure_name = test_roc_curve_fig)
+        test_eval_obj = Evaluation(test_label_trues, test_ypred, report_file_name = test_report, figure_name = test_roc_curve_fig)
         test_evaluation_metrics = test_eval_obj.confusion_matrix_calc()
         _ = test_eval_obj.ruc_curve_plot()
 
@@ -354,5 +364,50 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
 
 
 
+
+
+
+import torch
+import torch.nn as nn
+
+num_heads = 4
+num_layers = 3
+d_model = 16
+
+# multi-head transformer encoder layer
+encoder_layers = nn.TransformerEncoderLayer(
+    d_model, num_heads, 64, 0.1, norm_first=False, activation="relu", batch_first=True)
+# multi-layer transformer encoder
+transformer_encoder = nn.TransformerEncoder(
+    encoder_layers, num_layers)
+
+
+def extract_selfattention_maps(transformer_encoder,x,mask,src_key_padding_mask):
+    attention_maps = []
+    num_layers = transformer_encoder.num_layers
+    num_heads = transformer_encoder.layers[0].self_attn.num_heads
+    norm_first = transformer_encoder.layers[0].norm_first
+    with torch.no_grad():
+        for i in range(num_layers):
+            # compute attention of layer i
+            h = x.clone()
+            if norm_first:
+                h = transformer_encoder.layers[i].norm1(h)
+            attn = transformer_encoder.layers[i].self_attn(h, h, h,attn_mask=mask,key_padding_mask=src_key_padding_mask,need_weights=True)[1]
+            attention_maps.append(attn)
+            # forward of layer i
+            x = transformer_encoder.layers[i](x,src_mask=mask,src_key_padding_mask=src_key_padding_mask)
+    return attention_maps
+
+
+batch_size = 8
+seq_len = 25
+
+x = torch.randn((batch_size,seq_len,d_model))
+
+src_mask = torch.zeros((seq_len,seq_len)).bool()
+src_key_padding_mask = torch.zeros((batch_size,seq_len)).bool()
+
+attention_maps = extract_selfattention_maps(transformer_encoder,x,src_mask,src_key_padding_mask)
 
 
