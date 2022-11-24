@@ -16,6 +16,7 @@ from sklearn.metrics import roc_curve, auc
 from sklearn.metrics import confusion_matrix
 import math
 from math import log
+import torch.nn as nn
 
 
 
@@ -71,11 +72,18 @@ def save_loss_df(loss_stat, loss_df_name, loss_fig_name):
     plt.ylim(0, df['value'].max())
     plt.savefig(loss_fig_name, dpi = 300)
 
+
+
+
+
+
+
 class Evaluation(): 
-    def __init__(self, ytrue, ypred, category = None):
+    def __init__(self, ytrue, ypred, report_file_name = None, figure_name = None):
         self.ytrue     = ytrue
         self.ypred     = ypred
-        self.category = category 
+        self.report_file_name  = report_file_name 
+        self.figure_name = figure_name
 
 
     def confusion_matrix_calc(self): 
@@ -98,9 +106,25 @@ class Evaluation():
         if F <= 0:
             F = 0.009 
         
-        SEDI = (log(F) - log(POD) - log(1-F) + log(1-POD))/(log(F) + log(POD) + log(1-F) + log(1-POD))
+        #SEDI = (log(F) - log(POD) - log(1-F) + log(1-POD))/(log(F) + log(POD) + log(1-F) + log(1-POD))
 
-        output = [Hit, miss, FA, CR, POD, F, FAR, CSI, PSS, HSS, ORSS, CSS, SEDI]
+        output = [Hit, miss, FA, CR, POD, F, FAR, CSI, PSS, HSS, ORSS, CSS]
+
+        with open(self.report_file_name, "a") as f:
+            print(f"Hit: {Hit}", file=f)
+            print(f"Miss: {miss}", file=f)
+            print(f"FA: {FA}", file=f)
+            print(f"CR: {CR}", file=f)
+            print(f"POD: {F}", file=f)
+            print(f"F: {miss}", file=f)
+            print(f"FAR: {FAR}", file=f)
+            print(f"CSI: {CSI}", file=f)
+            print(f"PSS: {PSS}", file=f)
+            print(f"HSS: {HSS}", file=f)
+            print(f"ORSS: {ORSS}", file=f)
+            print(f"CSS: {CSS}", file=f)
+            #print(f"SEDI: {SEDI}", file=f)
+
     
         return output
         
@@ -118,6 +142,7 @@ class Evaluation():
         plt.ylabel('POD (probability of detection)', fontsize=20)
         title_string = 'ROC curve (AUC = {0:.3f})'.format(ROC_AUC)
         plt.title(title_string, fontsize=20)
+        plt.savefig(self.figure_name, dpi = 300)
 
     def BS_BSS_calc(self): 
 
@@ -150,96 +175,23 @@ class Evaluation():
 
 
 
-def eval_1d(start_date = None, 
-                finish_date = None, 
-                lead_time_pred = None, 
-                predictor_names = None, 
-                data_split_dict = None,  
-                visibility_threshold = None, 
-                point_geolocation_dic = None, 
-                dropout               = 0.3,
-                nhead                 = 8,
-                dim_feedforward       = 512, 
-                batch_size            = 64,
-                Exp_name              = None,
-):
+def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testing, Exp_name = None,):
 
 
-    save_dir = './EXPs/' + Exp_name
-    isExist  = os.path.isdir(save_dir)
+    save_dir = '/data1/fog/TransMAP/EXPs/' + Exp_name
+    best_model_name      = save_dir + '/best_model_' + Exp_name + '.pth'
 
-    if not isExist:
-        os.mkdir(save_dir)
+    train_csv_file = save_dir + '/train_prob_' + Exp_name + '.csv'
+    valid_csv_file = save_dir + '/valid_prob_' + Exp_name + '.csv'
+    test_csv_file  = save_dir + '/test_prob_' + Exp_name + '.csv'
 
-    best_model_name      = save_dir + '/best_model' + Exp_name + '.pth'
-    dict_name            = save_dir + '/mean_std_' + Exp_name + '.json' 
+    train_roc_curve_fig = save_dir + '/train_roc_' + Exp_name + '.png'
+    valid_roc_curve_fig = save_dir + '/valid_roc_' + Exp_name + '.png'
+    test_roc_curve_fig  = save_dir + '/test_roc_' + Exp_name + '.png'
 
-
-
-
-    # creating the entire data: 
-    dataset = dataloader.input_dataframe_generater(img_path = None, 
-                                                target_path = None, 
-                                                first_date_string = start_date, 
-                                                last_date_string = finish_date).dataframe_generation()
-                                             
-    # split the data into train, validation and test:
-    train_df, valid_df, test_df = dataloader.split_data_train_valid_test(dataset, year_split_dict = data_split_dict)
-    # calculating the mean and std of training variables: 
-    isDictExists = os.path.isfile(dict_name)
-    if not isDictExists:
-        norm_mean_std_dict = dataloader.return_train_variable_mean_std(train_df, 
-                                                    predictor_names = predictor_names, 
-                                                    lead_time_pred = lead_time_pred).return_mean_std_dict()
-        with open(dict_name, "w") as outfile:
-            json.dump(norm_mean_std_dict, outfile)
-    else: 
-        with open(dict_name, 'r') as file:
-            norm_mean_std_dict = json.load(file)
-
-    train_dataset = dataloader.DataAdopter(train_df, 
-                                            vis_threshold         = visibility_threshold, 
-                                            map_structure         = '1D', 
-                                            predictor_names       = predictor_names, 
-                                            lead_time_pred        = lead_time_pred, 
-                                            mean_std_dict         = norm_mean_std_dict,
-                                            point_geolocation_dic = point_geolocation_dic)
-
-    valid_dataset = dataloader.DataAdopter(valid_df, 
-                                            vis_threshold         = visibility_threshold, 
-                                            map_structure         = '1D', 
-                                            predictor_names       = predictor_names, 
-                                            lead_time_pred        = lead_time_pred, 
-                                            mean_std_dict         = norm_mean_std_dict,
-                                            point_geolocation_dic = point_geolocation_dic)
-
-    test_dataset = dataloader.DataAdopter(test_df, 
-                                            vis_threshold         = visibility_threshold, 
-                                            map_structure         = '1D', 
-                                            predictor_names       = predictor_names, 
-                                            lead_time_pred        = lead_time_pred, 
-                                            mean_std_dict         = norm_mean_std_dict,
-                                            point_geolocation_dic = point_geolocation_dic)
-
-    data_loader_training = torch.utils.data.DataLoader(train_dataset, batch_size= batch_size, 
-                                                    shuffle=True,  num_workers=8) 
-    data_loader_validate = torch.utils.data.DataLoader(valid_dataset, batch_size= batch_size, 
-                                                    shuffle=False,  num_workers=8)
-    data_loader_testing = torch.utils.data.DataLoader(test_dataset, batch_size= batch_size, 
-                                                    shuffle=False,  num_workers=8)
-
-    
-
-
-    model = transformers.Transformer1d(
-                                d_model        = dataset.shape[1], 
-                                nhead          = nhead, 
-                                dim_feedforward= dim_feedforward, 
-                                n_classes      = 2, 
-                                dropout        = dropout, 
-                                activation     = 'relu',
-                                verbose        = True).to(device)
-
+    train_report = save_dir + '/train_report_' + Exp_name + '.txt'
+    valid_report = save_dir + '/valid_report_' + Exp_name + '.txt'
+    test_report  = save_dir + '/test_report_' + Exp_name + '.txt'
 
     model.load_state_dict(torch.load(best_model_name))
 
@@ -247,7 +199,7 @@ def eval_1d(start_date = None,
     #==============================================================================================================#
     with torch.no_grad():
         model.eval()
-        train_date_times, train_round_times, train_cycletimes, train_visibilitys, train_label_trues, train_label_preds = [], [], [], [], [], []
+        train_date_times, train_round_times, train_cycletimes, train_visibilitys, train_label_trues, train_fog_preds, train_nonfog_preds= [], [], [], [], [], [], []
         for batch_idx, sample in enumerate(data_loader_training):
 
             train_date_time  = sample['date_time']
@@ -265,16 +217,20 @@ def eval_1d(start_date = None,
             train_label_true = sample['label_class']
             train_label_trues.append(train_label_true)
 
-            input_train      = sample['input'].to(device)
+            input_train      = sample['input'].to(0)
             _, train_out, _ = model(input_train)
-            train_label_preds.append(train_out)
+            train_out = torch.exp(train_out)
+            train_out = train_out.detach().cpu().numpy()
+            train_fog_preds.append(train_out[:, 1])
+            train_nonfog_preds.append(train_out[:, 0])
 
         train_date_times = np.concatenate(train_date_times)
         train_round_times = np.concatenate(train_round_times)
         train_cycletimes = np.concatenate(train_cycletimes)
         train_visibilitys = np.concatenate(train_visibilitys)
         train_label_trues = np.concatenate(train_label_trues)
-        train_label_preds = np.concatenate(train_label_preds)
+        train_fog_preds = np.concatenate(train_fog_preds)
+        train_nonfog_preds = np.concatenate(train_nonfog_preds)
 
         train_output = pd.DataFrame()
         train_output['date_time'] = train_date_times
@@ -282,17 +238,18 @@ def eval_1d(start_date = None,
         train_output['date_cycletime'] = train_cycletimes
         train_output['vis'] = train_visibilitys
         train_output['ytrue'] = train_label_trues
-        train_output['ypred'] = train_label_preds
+        train_output['fog_prob'] = train_fog_preds
+        train_output['nonfog_prob'] = train_nonfog_preds
 
-        train_output.to_csv()
+        train_output.to_csv(train_csv_file)
 
-        train_eval_obj = Evaluation(train_label_trues, train_label_preds, category = 'train')
+        train_eval_obj = Evaluation(train_label_trues, train_out, report_file_name = train_report, figure_name = train_roc_curve_fig)
         train_evaluation_metrics = train_eval_obj.confusion_matrix_calc()
-        train_plot_roc_curve     = train_eval_obj.ruc_curve_plot()
+        _ = train_eval_obj.ruc_curve_plot()
 
 
 
-        valid_date_times, valid_round_times, valid_cycletimes, valid_visibilitys, valid_label_trues, valid_label_preds = [], [], [], [], [], []
+        valid_date_times, valid_round_times, valid_cycletimes, valid_visibilitys, valid_label_trues, valid_fog_preds, valid_nonfog_preds= [], [], [], [], [], [], []
         for batch, sample in enumerate(data_loader_validate):
             
             valid_date_time  = sample['date_time']
@@ -310,9 +267,12 @@ def eval_1d(start_date = None,
             valid_label_true = sample['label_class']
             valid_label_trues.append(valid_label_true)
 
-            input_val      = sample['input'].to(device)
+            input_val      = sample['input'].to(0)
             _, pred_val, _ = model(input_val)
-            valid_label_preds.append(pred_val)
+            pred_val = torch.exp(pred_val)
+            pred_val = pred_val.detach().cpu().numpy()
+            valid_fog_preds.append(pred_val[:, 1])
+            valid_nonfog_preds.append(pred_val[:, 0])
 
 
         valid_date_times  = np.concatenate(valid_date_times)
@@ -320,7 +280,8 @@ def eval_1d(start_date = None,
         valid_cycletimes  = np.concatenate(valid_cycletimes)
         valid_visibilitys = np.concatenate(valid_visibilitys)
         valid_label_trues = np.concatenate(valid_label_trues)
-        valid_label_preds = np.concatenate(valid_label_preds)
+        valid_fog_preds = np.concatenate(valid_fog_preds)
+        valid_nonfog_preds = np.concatenate(valid_nonfog_preds)
 
         valid_output = pd.DataFrame()
         valid_output['date_time'] = valid_date_times
@@ -328,14 +289,16 @@ def eval_1d(start_date = None,
         valid_output['date_cycletime'] = valid_cycletimes
         valid_output['vis'] = valid_visibilitys
         valid_output['ytrue'] = valid_label_trues
-        valid_output['ypred'] = valid_label_preds
+        valid_output['fog_prob'] = valid_fog_preds
+        valid_output['nonfog_prob'] = valid_nonfog_preds
 
-        valid_output.to_csv()
-        valid_eval_obj = Evaluation(valid_label_trues, valid_label_preds, category = 'valid')
+        valid_output.to_csv(valid_csv_file)
+
+        valid_eval_obj = Evaluation(valid_label_trues, pred_val, report_file_name = valid_report, figure_name = valid_roc_curve_fig)
         valid_evaluation_metrics = valid_eval_obj.confusion_matrix_calc()
-        valid_plot_roc_curve     = valid_eval_obj.ruc_curve_plot()
+        _ = valid_eval_obj.ruc_curve_plot()
 
-        test_date_times, test_round_times,test_cycletimes, test_visibilitys, test_label_trues, test_label_preds = [], [], [], [], [], []
+        test_date_times, test_round_times,test_cycletimes, test_visibilitys, test_label_trues, test_fog_preds, test_nonfog_preds = [], [], [], [], [], [], []
         for batch, sample in enumerate(data_loader_testing):
 
             test_date_time  = sample['date_time']
@@ -355,9 +318,12 @@ def eval_1d(start_date = None,
             
 
 
-            input_test      = sample['input'].to(device)
+            input_test      = sample['input'].to(0)
             _, pred_test, _ = model(input_test)
-            test_label_preds.append(pred_test)
+            pred_test = torch.exp(pred_test)
+            pred_test = pred_test.detach().cpu().numpy()
+            test_fog_preds.append(pred_test[:, 1])
+            test_nonfog_preds.append(pred_test[:, 0])
 
 
         test_date_times  = np.concatenate(test_date_times)
@@ -365,7 +331,8 @@ def eval_1d(start_date = None,
         test_cycletimes  = np.concatenate(test_cycletimes)
         test_visibilitys = np.concatenate(test_visibilitys)
         test_label_trues = np.concatenate(test_label_trues)
-        test_label_preds = np.concatenate(test_label_preds)
+        test_fog_preds = np.concatenate(test_fog_preds)
+        test_nonfog_preds = np.concatenate(test_nonfog_preds)
 
         test_output = pd.DataFrame()
         test_output['date_time'] = test_date_times
@@ -373,12 +340,17 @@ def eval_1d(start_date = None,
         test_output['date_cycletime'] = test_cycletimes
         test_output['vis'] = test_visibilitys
         test_output['ytrue'] = test_label_trues
-        test_output['ypred'] = test_label_preds
+        test_output['fog_preb'] = test_fog_preds
+        test_output['nonfog_preb'] = test_nonfog_preds
 
-        test_output.to_csv()
-        test_eval_obj = Evaluation(test_label_trues, test_label_preds, category = 'valid')
+
+        test_output.to_csv(test_csv_file)
+
+        test_eval_obj = Evaluation(test_label_trues, pred_test, report_file_name = test_report, figure_name = test_roc_curve_fig)
         test_evaluation_metrics = test_eval_obj.confusion_matrix_calc()
-        test_plot_roc_curve     = test_eval_obj.ruc_curve_plot()
+        _ = test_eval_obj.ruc_curve_plot()
+
+    return train_output, valid_output, test_output
 
 
 

@@ -236,11 +236,12 @@ HOUR_PREDICTION_FORMAT = '[0-9][0-9][0-9]'
 
 class input_dataframe_generater():
     
-    def __init__(self, img_path = None, target_path = None, first_date_string = None, last_date_string = None):
+    def __init__(self, img_path = None, target_path = None, first_date_string = None, last_date_string = None, target_binarizing_thre = None):
 
         self.img_path          = img_path
         self.first_date_string = first_date_string
         self.last_date_string  = last_date_string
+        self.th = target_binarizing_thre
 
 
 
@@ -352,7 +353,7 @@ class input_dataframe_generater():
         
     def binarize_onehot_label_df(self, target):
         #label_col = self.dataframe['vis']
-        target['vis_category']  = target['VIS'].apply(lambda x: 'fog' if x <= 1 else 'non_fog')
+        target['vis_category']  = target['VIS'].apply(lambda x: 'fog' if x <= self.th else 'non_fog')
 
         target['vis_class'] = target['vis_category'].astype('category')
         encode_map = {
