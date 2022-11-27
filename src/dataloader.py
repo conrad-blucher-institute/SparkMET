@@ -2,6 +2,7 @@ import copy
 import time
 import calendar
 import netCDF4
+import json
 import numpy as np
 import statistics as st 
 from numpy import savez_compressed
@@ -20,6 +21,7 @@ plt.rc('axes', labelsize=14)     # fontsize of the x and y labels
 
 import torch 
 import torch.nn as nn
+from models import engine, configs 
 
 
 MUR_coords = {'P3': [246, 115], 
@@ -177,6 +179,9 @@ NETCDF_PREDICTOR_NAMES = {
     NETCDF_RH_875mb, NETCDF_RH_850mb, NETCDF_RH_825mb, NETCDF_RH_800mb, NETCDF_RH_775mb, NETCDF_RH_750mb, NETCDF_RH_725mb, NETCDF_RH_700mb, 
     NETCDF_DPT_2m, NETCDF_Q, NETCDF_RH_2m, NETCDF_LCLT, NETCDF_VIS, NETCDF_VVEL_975mb, NETCDF_VVEL_950mb, NETCDF_VVEL_925mb, NETCDF_VVEL_900mb, 
     NETCDF_VVEL_875mb, NETCDF_VVEL_850mb, NETCDF_VVEL_825mb, NETCDF_VVEL_800mb, NETCDF_VVEL_775mb, NETCDF_VVEL_750mb, NETCDF_VVEL_725mb, NETCDF_VVEL_700mb],
+
+
+    'Five_Top': [NETCDF_VVEL_750mb, NETCDF_VVEL_925mb, NETCDF_VIS, NETCDF_VGRD_775mb, NETCDF_TMP_2m],
 
     'Physical_G1':[NETCDF_FRICV, NETCDF_UGRD_10m, NETCDF_UGRD_975mb, NETCDF_UGRD_950mb, NETCDF_UGRD_925mb, NETCDF_UGRD_900mb,
     NETCDF_UGRD_875mb, NETCDF_UGRD_850mb, NETCDF_UGRD_825mb, NETCDF_UGRD_800mb, NETCDF_UGRD_775mb,  NETCDF_UGRD_750mb,
@@ -485,8 +490,14 @@ class DataAdopter():
         # reading the nam map
         nc_nam_timeseries_files_path_list = self.dataframe.loc[idx]['nam_nc_files_path']
         nam_timeseries_predictor_matrix   = self.read_nc_nam_maps(nc_nam_timeseries_files_path_list)
-        nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix.values#.flatten()
+        if self.map_structure == '1D': 
+            nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix.values#.flatten()
+        else: 
+            nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix[0, :,:,:5]
+            
+
         nam_timeseries_predictor_matrix   = torch.as_tensor(nam_timeseries_predictor_matrix, dtype = torch.float32)
+        nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix.permute(2, 0, 1)
         # reading mur map 
         #nc_mur_timeseries_files_path_list = self.dataset.loc[idx]['mur_nc_files_path']
         #mur_timeseries_predictor_matrix   = self.read_nc_nam_maps(nc_mur_timeseries_files_path_list)
@@ -578,7 +589,18 @@ class DataAdopter():
                     timeseries_predictor_matrix = pd.concat((
                         timeseries_predictor_matrix, this_timeseries_predictor_matrix), axis=1)
 
-            elif self.map_structure == '2D' or self.map_structure == '3D':
+            elif self.map_structure == '2D':
+
+                if timeseries_predictor_matrix is None:
+                    timeseries_predictor_matrix = predictor_matrix + 0.
+
+                else:
+                    timeseries_predictor_matrix = np.concatenate(
+                        (timeseries_predictor_matrix, predictor_matrix), axis=-1
+                    )
+
+
+            elif self.map_structure == '3D':
 
                 if timeseries_predictor_matrix is None:
                     timeseries_predictor_matrix = predictor_matrix + 0.
@@ -627,6 +649,77 @@ class DataAdopter():
 
             
 
+
+
+#===========
+def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
+
+    save_dir = '/data1/fog/TransMAP/EXPs/' + Exp_name
+    isExist  = os.path.isdir(save_dir)
+
+    if not isExist:
+        os.mkdir(save_dir)
+
+    best_model_name      = save_dir + '/best_model_' + Exp_name + '.pth'
+    loss_fig_name        = save_dir + '/loss_' + Exp_name + '.png'
+    loss_df_name         = save_dir + '/loss_' + Exp_name + '.csv' 
+    dict_name            = save_dir + '/mean_std_' + Exp_name + '.json' 
+
+    # creating the entire data: 
+    dataset = input_dataframe_generater(img_path = None, 
+                                        target_path = None, 
+                                        first_date_string = data_config_dict.start_date, 
+                                        last_date_string = data_config_dict.finish_date, 
+                                        target_binarizing_thre = data_config_dict.vis_threshold).dataframe_generation()
+
+    # split the data into train, validation and test:
+    train_df, valid_df, test_df = split_data_train_valid_test(dataset, year_split_dict = data_config_dict.data_split_dict)
+    _ = engine.print_report(train_df, valid_df, test_df)
+
+    # calculating the mean and std of training variables: 
+    #start_time = time.time()
+    isDictExists = os.path.isfile(dict_name)
+    if not isDictExists:
+        norm_mean_std_dict = return_train_variable_mean_std(train_df, 
+                                                    predictor_names = data_config_dict.predictor_names, 
+                                                    lead_time_pred = data_config_dict.lead_time_pred).return_mean_std_dict()
+        #print("--- Normalize data: %s seconds ---" % (time.time() - start_time))
+        with open(dict_name, "w") as outfile:
+            json.dump(norm_mean_std_dict, outfile)
+    else: 
+        with open(dict_name, 'r') as file:
+            norm_mean_std_dict = json.load(file)
+
+    train_dataset = DataAdopter(train_df, 
+                                map_structure         = data_config_dict.data_straucture, 
+                                predictor_names       = data_config_dict.predictor_names, 
+                                lead_time_pred        = data_config_dict.lead_time_pred, 
+                                mean_std_dict         = norm_mean_std_dict,
+                                point_geolocation_dic = data_config_dict.points_coords)
+
+    valid_dataset = DataAdopter(valid_df, 
+                                map_structure         = data_config_dict.data_straucture, 
+                                predictor_names       = data_config_dict.predictor_names, 
+                                lead_time_pred        = data_config_dict.lead_time_pred, 
+                                mean_std_dict         = norm_mean_std_dict,
+                                point_geolocation_dic = data_config_dict.points_coords)
+
+    test_dataset = DataAdopter(test_df, 
+                                map_structure         = data_config_dict.data_straucture, 
+                                predictor_names       = data_config_dict.predictor_names, 
+                                lead_time_pred        = data_config_dict.lead_time_pred,  
+                                mean_std_dict         = norm_mean_std_dict,
+                                point_geolocation_dic = data_config_dict.points_coords)
+
+    data_loader_training = torch.utils.data.DataLoader(train_dataset, batch_size= training_config_dict['batch_size'], 
+                                                    shuffle=True,  num_workers=8) 
+    data_loader_validate = torch.utils.data.DataLoader(valid_dataset, batch_size= training_config_dict['batch_size'], 
+                                                    shuffle=False,  num_workers=8)
+    data_loader_testing = torch.utils.data.DataLoader(test_dataset, batch_size= training_config_dict['batch_size'], 
+                                                    shuffle=False,  num_workers=8)
+    
+
+    return data_loader_training, data_loader_validate, data_loader_testing
         
 
 

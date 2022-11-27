@@ -28,6 +28,9 @@ def print_report(train_df, valid_df, test_df):
     print(f"number of test samples:       {test_df.shape[0]} | number of test fog cases:       {test_fog_cases}")
     print("#=====================================================================================#")
 
+
+
+
 class EarlyStopping():
     def __init__(self, tolerance=30, min_delta=0):
 
@@ -131,15 +134,16 @@ class Evaluation():
         fpr, tpr, thresholds = roc_curve(self.ytrue, ypred_fog)
 
         ROC_AUC = auc(fpr, tpr)     
+        fig, ax = plt.subplots(figsize = (8, 6))
         
-        plt.plot(fpr, tpr, linewidth=3, color = 'red')
-        plt.plot([0, 1], [0, 1], 'k--')
-        plt.xlim([-0.005, 1.0])
-        plt.ylim([0.0, 1.005])
-        plt.xlabel('FAR (probability of false detection)',  fontsize=16)
-        plt.ylabel('POD (probability of detection)', fontsize=16)
+        ax.plot(fpr, tpr, linewidth=3, color = 'red')
+        ax.plot([0, 1], [0, 1], 'k--')
+        ax.set_xlim([-0.005, 1.0])
+        ax.set_ylim([0.0, 1.005])
+        ax.set_xlabel('FAR (probability of false detection)',  fontsize=16)
+        ax.set_ylabel('POD (probability of detection)', fontsize=16)
         title_string = 'ROC curve (AUC = {0:.3f})'.format(ROC_AUC)
-        plt.title(title_string, fontsize=16)
+        ax.set_title(title_string, fontsize=16)
         plt.savefig(self.figure_name, dpi = 300)
 
     def BS_BSS_calc(self): 
@@ -173,7 +177,7 @@ class Evaluation():
 
 
 
-def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testing, Exp_name = None,):
+def predict(model, data_loader_training, data_loader_validate, data_loader_testing, Exp_name = None,):
 
 
     save_dir = '/data1/fog/TransMAP/EXPs/' + Exp_name
@@ -216,10 +220,12 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
             train_label_trues.append(train_label_true)
 
             input_train      = sample['input'].to(0)
-            _, train_out, _ = model(input_train)
-            train_out = torch.exp(train_out)
-            train_out = train_out.detach().cpu().numpy()
+            logits, attn_weights = model(input_train)
+ 
 
+            #_, train_out, _ = model(input_train)
+            train_out = torch.exp(logits)
+            train_out = train_out.detach().cpu().numpy()
 
             train_fog_preds.append(train_out[:, 1])
             train_nonfog_preds.append(train_out[:, 0])
@@ -271,9 +277,12 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
             valid_label_true = sample['label_class']
             valid_label_trues.append(valid_label_true)
 
-            input_val      = sample['input'].to(0)
-            _, pred_val, _ = model(input_val)
-            pred_val = torch.exp(pred_val)
+            input_val            = sample['input'].to(0)
+            logits, attn_weights = model(input_val)
+            #m = nn.Softmax(dim=1)
+            #pred_val = m(logits)
+            pred_val = torch.exp(logits)
+
             pred_val = pred_val.detach().cpu().numpy()
             valid_fog_preds.append(pred_val[:, 1])
             valid_nonfog_preds.append(pred_val[:, 0])
@@ -326,8 +335,11 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
             test_label_trues.append(test_label_true)
 
             input_test      = sample['input'].to(0)
-            _, pred_test, _ = model(input_test)
-            pred_test = torch.exp(pred_test)
+            logits, attn_weights = model(input_test)
+            #m = nn.Softmax(dim=1)
+            #pred_test = m(logits)
+            #_, pred_test, _ = model(input_test)
+            pred_test = torch.exp(logits)
             pred_test = pred_test.detach().cpu().numpy()
             test_fog_preds.append(pred_test[:, 1])
             test_nonfog_preds.append(pred_test[:, 0])
@@ -360,26 +372,103 @@ def eval_1d(model, data_loader_training, data_loader_validate, data_loader_testi
         test_evaluation_metrics = test_eval_obj.confusion_matrix_calc()
         _ = test_eval_obj.ruc_curve_plot()
 
-    return train_output, valid_output, test_output
+    return [train_output, valid_output, test_output]
+
+def train(parallel_net, training_config_dict, data_loader_training, data_loader_validate, Exp_name):
 
 
+    save_dir = '/data1/fog/TransMAP/EXPs/' + Exp_name
+ 
+    best_model_name      = save_dir + '/best_model_' + Exp_name + '.pth'
+    loss_fig_name        = save_dir + '/loss_' + Exp_name + '.png'
+    loss_df_name         = save_dir + '/loss_' + Exp_name + '.csv' 
+
+    optimizer = optim.Adam(parallel_net.parameters(), lr = training_config_dict['lr'], weight_decay = training_config_dict['wd'])
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
+    loss_func = torch.nn.NLLLoss() 
 
 
+    loss_stats = {'train': [],"val": []}
 
+    best_val_loss = 100000 # initial dummy value
+    early_stopping = engine.EarlyStopping(tolerance = training_config_dict['early_stop_tolerance'], min_delta=50)
+    step  = 0
+    #==============================================================================================================#
+    #==============================================================================================================#
+    epochs = training_config_dict['epochs']
+    for epoch in range(1, epochs+1):
+        training_start_time = time.time()
+        # TRAINING
+        train_epoch_loss = 0
+        train_epoch_acc  = 0
+        parallel_net.train()
 
-import torch
-import torch.nn as nn
+        for batch_idx, sample in enumerate(data_loader_training):
+            
+            input_train      = sample['input'].to(0)
+            train_label_true = sample['label_class'].to(0)
 
-num_heads = 4
-num_layers = 3
-d_model = 16
+            _, train_out, _ = parallel_net(input_train)
+            optimizer.zero_grad()
 
-# multi-head transformer encoder layer
-encoder_layers = nn.TransformerEncoderLayer(
-    d_model, num_heads, 64, 0.1, norm_first=False, activation="relu", batch_first=True)
-# multi-layer transformer encoder
-transformer_encoder = nn.TransformerEncoder(
-    encoder_layers, num_layers)
+            train_loss  = loss_func(train_out, train_label_true) #
+            train_loss.backward()
+            optimizer.step()
+            step += 1
+
+            train_epoch_loss += train_loss.item()
+
+            #train_acc = engine.binary_acc(train_out, train_class_true.unsqueeze(1))
+            #train_epoch_acc += train_acc.item()
+
+        #scheduler.step(_)
+        # VALIDATION    
+        with torch.no_grad():
+            
+            val_epoch_loss = 0
+            #val_epoch_acc = 0
+            parallel_net.eval()
+            for batch, sample in enumerate(data_loader_validate):
+                
+                input_val      = sample['input'].to(0)
+                class_true_val = sample['onehotlabel'].to(0)
+                label_true_val = sample['label_class'].to(0)
+
+                _, pred_val, _ = parallel_net(input_val)
+            
+                val_loss       = loss_func(pred_val, label_true_val)
+                val_epoch_loss += val_loss.item()
+
+                #valid_acc = engine.binary_acc(train_out, train_class_true.unsqueeze(1))
+                #val_epoch_acc += valid_acc.item()
+                
+        training_duration_time = (time.time() - training_start_time)
+
+        loss_stats['train'].append(train_epoch_loss/len(data_loader_training))
+        loss_stats['val'].append(val_epoch_loss/len(data_loader_validate))
+        print(f'Epoch {epoch+0:03}: | Train Loss: {train_epoch_loss/len(data_loader_training):.4f} | Val Loss: {val_epoch_loss/len(data_loader_validate):.4f} | Time(s): {training_duration_time:.3f}') 
+        #   | Train HSS: {train_epoch_acc/len(data_loader_training):.4f} | Val HSS: {val_epoch_acc/len(data_loader_validate):.4f}
+        if (val_epoch_loss/len(data_loader_validate)) < best_val_loss or epoch==0:
+                    
+            best_val_loss=(val_epoch_loss/len(data_loader_validate))
+            torch.save(parallel_net.state_dict(), best_model_name)
+            
+            status = True
+
+            print(f'Best model Saved! Val Loss: {best_val_loss:.4f}')
+        else:
+            print(f'Model is not saved! Current Val Loss: {(val_epoch_loss/len(data_loader_validate)):.4f}') 
+                
+            status = False
+
+        # early stopping
+        early_stopping(status)
+        if early_stopping.early_stop:
+            print("Epoch:", epoch)
+            break
+    _ = save_loss_df(loss_stats, loss_df_name, loss_fig_name)
+
+    return parallel_net, loss_stats
 
 
 def extract_selfattention_maps(transformer_encoder,x,mask,src_key_padding_mask):
@@ -400,14 +489,6 @@ def extract_selfattention_maps(transformer_encoder,x,mask,src_key_padding_mask):
     return attention_maps
 
 
-batch_size = 8
-seq_len = 25
 
-x = torch.randn((batch_size,seq_len,d_model))
-
-src_mask = torch.zeros((seq_len,seq_len)).bool()
-src_key_padding_mask = torch.zeros((batch_size,seq_len)).bool()
-
-attention_maps = extract_selfattention_maps(transformer_encoder,x,src_mask,src_key_padding_mask)
 
 
