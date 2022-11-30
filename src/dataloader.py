@@ -182,6 +182,7 @@ NETCDF_PREDICTOR_NAMES = {
 
 
     'Five_Top': [NETCDF_VVEL_750mb, NETCDF_VVEL_925mb, NETCDF_VIS, NETCDF_VGRD_775mb, NETCDF_TMP_2m],
+    'Five_Top_2': [NETCDF_VVEL_925mb, NETCDF_TMP_2m, NETCDF_VGRD_775mb, NETCDF_VIS, NETCDF_VVEL_750mb],
 
     'Physical_G1':[NETCDF_FRICV, NETCDF_UGRD_10m, NETCDF_UGRD_975mb, NETCDF_UGRD_950mb, NETCDF_UGRD_925mb, NETCDF_UGRD_900mb,
     NETCDF_UGRD_875mb, NETCDF_UGRD_850mb, NETCDF_UGRD_825mb, NETCDF_UGRD_800mb, NETCDF_UGRD_775mb,  NETCDF_UGRD_750mb,
@@ -494,10 +495,12 @@ class DataAdopter():
             nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix.values#.flatten()
         else: 
             nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix[0, :,:,:5]
+        
             
 
         nam_timeseries_predictor_matrix   = torch.as_tensor(nam_timeseries_predictor_matrix, dtype = torch.float32)
         nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix.permute(2, 0, 1)
+        
         # reading mur map 
         #nc_mur_timeseries_files_path_list = self.dataset.loc[idx]['mur_nc_files_path']
         #mur_timeseries_predictor_matrix   = self.read_nc_nam_maps(nc_mur_timeseries_files_path_list)

@@ -93,8 +93,8 @@ def get_1D_config():
 def get_ViT_config():
     """Returns the ViT configuration."""
     config = ml_collections.ConfigDict()
-    config.patches = ml_collections.ConfigDict({'size': (32, 32)})
-    config.hidden_size = 1024
+    config.patches = ml_collections.ConfigDict({'size': (8, 8)})
+    config.hidden_size = 320
     config.transformer = ml_collections.ConfigDict()
     config.transformer.mlp_dim = 512
     config.transformer.num_heads = 8

@@ -174,9 +174,9 @@ class Embeddings(nn.Module):
 
 
         patch_size = _pair(config.patches["size"])
-        n_patches = in_channels # (img_size[0] // patch_size[0]) * (img_size[1] // patch_size[1])
+        n_patches = (img_size[0] // patch_size[0]) * (img_size[1] // patch_size[1]) # in_channels # 
 
-        self.patch_embeddings = Conv2d(in_channels = 1,
+        self.patch_embeddings = Conv2d(in_channels = in_channels,
                                        out_channels=config.hidden_size,
                                        kernel_size=patch_size,
                                        stride=patch_size)
@@ -189,7 +189,7 @@ class Embeddings(nn.Module):
         B = x.shape[0]
         cls_tokens = self.cls_token.expand(B, -1, -1)
 
-        x_stack = None
+        '''x_stack = None
         for i in range(x.shape[1]):
             x_ = x[:, i, :, :]
             x_ = torch.unsqueeze(x_, dim=1) 
@@ -202,7 +202,13 @@ class Embeddings(nn.Module):
                 x_stack = torch.cat((x_stack, x_), dim=1)
 
         x_stack = torch.cat((cls_tokens, x_stack), dim=1)
-        embeddings = x_stack + self.position_embeddings
+        embeddings = x_stack + self.position_embeddings'''
+
+        x = self.patch_embeddings(x)
+        x = x.flatten(2)
+        x = x.transpose(-1, -2)
+        x = torch.cat((cls_tokens, x), dim=1)
+        embeddings = x + self.position_embeddings
         embeddings = self.dropout(embeddings)
 
         return embeddings
@@ -216,8 +222,6 @@ class Block(nn.Module):
         self.ffn_norm = LayerNorm(config.hidden_size, eps=1e-6)
         self.ffn = Mlp(config)
         self.attn = Attention(config, vis)
-
-
 
 
     def forward(self, x):
@@ -305,7 +309,7 @@ class Transformer(nn.Module):
 
 
 class VisionTransformer(nn.Module):
-    def __init__(self, config, img_size=32, num_classes=2, zero_head=False, vis=False):
+    def __init__(self, config, img_size=32, num_classes=2, zero_head=False, vis=True):
         super(VisionTransformer, self).__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head

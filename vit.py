@@ -104,7 +104,7 @@ def train_vit(image_data_path: str,
                                                     shuffle=False,  num_workers=8)
     model_type = 'ViT-L_32'
     config = transformers.CONFIGS[model_type]
-    model = transformers.VisionTransformer(config, img_size=32, num_classes=2,)
+    model = transformers.VisionTransformer(config, img_size=32, num_classes=2, vis=True)
     #parallel_net = nn.DataParallel(model, device_ids = [0, 1, 2, 3])
     parallel_net = model.to(0)
 
@@ -114,6 +114,7 @@ def train_vit(image_data_path: str,
     loss_func = torch.nn.CrossEntropyLoss() # BCEWithLogitsLoss()  #  torch.nn.NLLLoss()
 
     loss_stats = {'train': [],"val": []}
+
 
     best_val_loss = 100000 # initial dummy value
     early_stopping = engine.EarlyStopping(tolerance = model_config_dict['early_stop_tolerance'], min_delta=50)
@@ -223,11 +224,11 @@ if __name__ == "__main__":
             start_date            = year_information['2009'][0], 
             finish_date           = year_information['2020'][1], 
             lead_time_pred        = 24, 
-            predictor_names       = dataloader.NETCDF_PREDICTOR_NAMES['Five_Top'], 
+            predictor_names       = dataloader.NETCDF_PREDICTOR_NAMES['Five_Top_2'], 
             data_split_dict       = {'train': ['2013', '2014', '2015', '2016', '2017'], 'valid': ['2009', '2010', '2011'], 'test': ['2018', '2019', '2020']}, #{'train': ['2020'], 'valid': ['2020'], 'test': ['2020']}, 
             visibility_threshold  = 1, 
             point_geolocation_dic = dataloader.NAM_coords, 
             model_config_dict     = configs.config_dictionary_1D,
-            Exp_name              = 'EX002_2D_FiveTop'
+            Exp_name              = 'EX007_2D_FiveTop_Channel'
             )
 
