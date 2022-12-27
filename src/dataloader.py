@@ -24,222 +24,6 @@ import torch.nn as nn
 from models import engine, configs 
 
 
-MUR_coords = {'P3': [246, 115], 
-'P4': [225, 145]} 
-
-#NAM_coords = {'P1':[23, 6],
-#         'P2':[22, 8],
-#         'P3':[21, 10],
-#         'P4':[19, 12]} 
-NAM_coords = {'P1':[23, 6],
-         'P2':[22, 8]} 
-
-# Variable names.
-NETCDF_X = 'x'
-NETCDF_Y = 'y'
-MUR_LATITUDE = 'lat'
-MUR_LONGITUDE = 'lon'
-NETCDF_LATITUDE = 'latitude'
-NETCDF_LONGITUDE = 'longitude'
-NETCDF_TIME = 'time'
-
-
-NETCDF_UGRD_10m   = 'UGRD_10maboveground'
-#NETCDF_UGRD_1000mb= 'UGRD_1000mb'
-NETCDF_UGRD_975mb = 'UGRD_975mb'
-NETCDF_UGRD_950mb = 'UGRD_950mb'
-NETCDF_UGRD_925mb = 'UGRD_925mb'
-NETCDF_UGRD_900mb = 'UGRD_900mb'
-NETCDF_UGRD_875mb = 'UGRD_875mb'
-NETCDF_UGRD_850mb = 'UGRD_850mb'
-NETCDF_UGRD_825mb = 'UGRD_825mb'
-NETCDF_UGRD_800mb = 'UGRD_800mb'
-NETCDF_UGRD_775mb = 'UGRD_775mb'
-NETCDF_UGRD_750mb = 'UGRD_750mb'
-NETCDF_UGRD_725mb = 'UGRD_725mb'
-NETCDF_UGRD_700mb = 'UGRD_700mb'
-NETCDF_VGRD_10m   = 'VGRD_10maboveground'
-#NETCDF_VGRD_1000mb= 'VGRD_1000mb'
-NETCDF_VGRD_975mb = 'VGRD_975mb'
-NETCDF_VGRD_950mb = 'VGRD_950mb'
-NETCDF_VGRD_925mb = 'VGRD_925mb'
-NETCDF_VGRD_900mb = 'VGRD_900mb'
-NETCDF_VGRD_875mb = 'VGRD_875mb'
-NETCDF_VGRD_850mb = 'VGRD_850mb'
-NETCDF_VGRD_825mb = 'VGRD_825mb'
-NETCDF_VGRD_800mb = 'VGRD_800mb'
-NETCDF_VGRD_775mb = 'VGRD_775mb'
-NETCDF_VGRD_750mb = 'VGRD_750mb'
-NETCDF_VGRD_725mb = 'VGRD_725mb'
-NETCDF_VGRD_700mb = 'VGRD_700mb'
-#NETCDF_VVEL_1000mb= 'VVEL_1000mb'
-NETCDF_VVEL_975mb = 'VVEL_975mb'
-NETCDF_VVEL_950mb = 'VVEL_950mb'
-NETCDF_VVEL_925mb = 'VVEL_925mb'
-NETCDF_VVEL_900mb = 'VVEL_900mb'
-NETCDF_VVEL_875mb = 'VVEL_875mb'
-NETCDF_VVEL_850mb = 'VVEL_850mb'
-NETCDF_VVEL_825mb = 'VVEL_825mb'
-NETCDF_VVEL_800mb = 'VVEL_800mb'
-NETCDF_VVEL_775mb = 'VVEL_775mb'
-NETCDF_VVEL_750mb = 'VVEL_750mb'
-NETCDF_VVEL_725mb = 'VVEL_725mb'
-NETCDF_VVEL_700mb = 'VVEL_700mb'
-#NETCDF_TKE_1000mb = 'TKE_1000mb'
-NETCDF_TKE_975mb = 'TKE_975mb'
-NETCDF_TKE_950mb = 'TKE_950mb'
-NETCDF_TKE_925mb = 'TKE_925mb'
-NETCDF_TKE_900mb = 'TKE_900mb'
-NETCDF_TKE_875mb = 'TKE_875mb'
-NETCDF_TKE_850mb = 'TKE_850mb'
-NETCDF_TKE_825mb = 'TKE_825mb'
-NETCDF_TKE_800mb = 'TKE_800mb'
-NETCDF_TKE_775mb = 'TKE_775mb'
-NETCDF_TKE_750mb = 'TKE_750mb'
-NETCDF_TKE_725mb = 'TKE_725mb'
-NETCDF_TKE_700mb = 'TKE_700mb'
-NETCDF_TMP_SFC  = 'TMP_surface'
-NETCDF_TMP_2m    = 'TMP_2maboveground'
-#NETCDF_TMP_1000mb= 'TMP_1000mb'
-NETCDF_TMP_975mb = 'TMP_975mb'
-NETCDF_TMP_950mb = 'TMP_950mb'
-NETCDF_TMP_925mb = 'TMP_925mb'
-NETCDF_TMP_900mb = 'TMP_900mb'
-NETCDF_TMP_875mb = 'TMP_875mb'
-NETCDF_TMP_850mb = 'TMP_850mb'
-NETCDF_TMP_825mb = 'TMP_825mb'
-NETCDF_TMP_800mb   = 'TMP_800mb'
-NETCDF_TMP_775mb   = 'TMP_775mb'
-NETCDF_TMP_750mb   = 'TMP_750mb'
-NETCDF_TMP_725mb   = 'TMP_725mb'
-NETCDF_TMP_700mb   = 'TMP_700mb'
-#NETCDF_RH_1000mb = 'RH_1000mb'
-NETCDF_RH_975mb    = 'RH_975mb'
-NETCDF_RH_950mb    = 'RH_950mb'
-NETCDF_RH_925mb    = 'RH_925mb'
-NETCDF_RH_900mb    = 'RH_900mb'
-NETCDF_RH_875mb    = 'RH_875mb'
-NETCDF_RH_850mb    = 'RH_850mb'
-NETCDF_RH_825mb    = 'RH_825mb'
-NETCDF_RH_800mb    = 'RH_800mb'
-NETCDF_RH_775mb    = 'RH_775mb'
-NETCDF_RH_750mb    = 'RH_750mb'
-NETCDF_RH_725mb    = 'RH_725mb'
-NETCDF_RH_700mb    = 'RH_700mb'
-NETCDF_DPT_2m      = 'DPT_2maboveground'
-NETCDF_FRICV       = 'FRICV_surface'
-NETCDF_VIS         = 'VIS_surface'
-NETCDF_RH_2m       = 'RH_2maboveground'
-#
-NETCDF_Q975        = 'Q_975mb'
-NETCDF_Q950        = 'Q_950mb'
-NETCDF_Q925        = 'Q_925mb'
-NETCDF_Q900        = 'Q_900mb'
-NETCDF_Q875        = 'Q_875mb'
-NETCDF_Q850        = 'Q_850mb'
-NETCDF_Q825        = 'Q_825mb'
-NETCDF_Q800        = 'Q_800mb'
-NETCDF_Q775        = 'Q_775mb'
-NETCDF_Q750        = 'Q_750mb'
-NETCDF_Q725        = 'Q_725mb'
-NETCDF_Q700        = 'Q_700mb'
-NETCDF_Q           = 'Q_surface'
-#NETCDF_DQDZ1000SFC = 'DQDZ1000SFC'
-NETCDF_DQDZ975SFC  = 'DQDZ975SFC'
-NETCDF_DQDZ950975  = 'DQDZ950975'
-NETCDF_DQDZ925950  = 'DQDZ925950'
-NETCDF_DQDZ900925  = 'DQDZ900925'
-NETCDF_DQDZ875900  = 'DQDZ875900'
-NETCDF_DQDZ850875  = 'DQDZ850875'
-NETCDF_DQDZ825850  = 'DQDZ825850'
-NETCDF_DQDZ800825  = 'DQDZ800825'
-NETCDF_DQDZ775800  = 'DQDZ775800'
-NETCDF_DQDZ750775  = 'DQDZ750775'
-NETCDF_DQDZ725750  = 'DQDZ725750'
-NETCDF_DQDZ700725  = 'DQDZ700725'
-NETCDF_LCLT        = 'LCLT'
-
-#+++++++++++++++
-NETCDF_SST    = 'analysed_sst'
-NETCDF_TMPDPT = 'TMP-DPT'
-NETCDF_TMPSST = 'TMP-SST'
-NETCDF_DPTSST = 'DPT-SST'
-
-
-NETCDF_PREDICTOR_NAMES = {
-    'All': [NETCDF_TMP_2m, NETCDF_TMP_975mb, NETCDF_TMP_950mb, NETCDF_TMP_925mb, NETCDF_TMP_900mb, NETCDF_TMP_875mb, NETCDF_TMP_850mb, 
-    NETCDF_TMP_825mb, NETCDF_TMP_800mb, NETCDF_TMP_775mb, NETCDF_TMP_750mb, NETCDF_TMP_725mb, NETCDF_TMP_700mb, 
-    NETCDF_UGRD_10m, NETCDF_VGRD_10m, NETCDF_FRICV, NETCDF_UGRD_975mb, NETCDF_VGRD_975mb, NETCDF_TKE_975mb,
-    NETCDF_UGRD_950mb, NETCDF_VGRD_950mb, NETCDF_TKE_950mb, NETCDF_UGRD_925mb, NETCDF_VGRD_925mb, NETCDF_TKE_925mb, NETCDF_UGRD_900mb, NETCDF_VGRD_900mb,
-    NETCDF_TKE_900mb, NETCDF_UGRD_875mb, NETCDF_VGRD_875mb, NETCDF_TKE_875mb, NETCDF_UGRD_850mb, NETCDF_VGRD_850mb, NETCDF_TKE_850mb, NETCDF_UGRD_825mb,
-    NETCDF_VGRD_825mb, NETCDF_TKE_825mb, NETCDF_UGRD_800mb, NETCDF_VGRD_800mb, NETCDF_TKE_800mb, NETCDF_UGRD_775mb, NETCDF_VGRD_775mb,
-    NETCDF_TKE_775mb, NETCDF_UGRD_750mb, NETCDF_VGRD_750mb, NETCDF_TKE_750mb, NETCDF_UGRD_725mb, NETCDF_VGRD_725mb, NETCDF_TKE_725mb,
-    NETCDF_UGRD_700mb,  NETCDF_VGRD_700mb, NETCDF_TKE_700mb, NETCDF_Q975, NETCDF_Q950, NETCDF_Q925, NETCDF_Q900, NETCDF_Q875, NETCDF_Q850,
-    NETCDF_Q825, NETCDF_Q800, NETCDF_Q775,NETCDF_Q750, NETCDF_Q725, NETCDF_Q700, NETCDF_RH_975mb, NETCDF_RH_950mb, NETCDF_RH_925mb,NETCDF_RH_900mb, 
-    NETCDF_RH_875mb, NETCDF_RH_850mb, NETCDF_RH_825mb, NETCDF_RH_800mb, NETCDF_RH_775mb, NETCDF_RH_750mb, NETCDF_RH_725mb, NETCDF_RH_700mb, 
-    NETCDF_DPT_2m, NETCDF_Q, NETCDF_RH_2m, NETCDF_LCLT, NETCDF_VIS, NETCDF_VVEL_975mb, NETCDF_VVEL_950mb, NETCDF_VVEL_925mb, NETCDF_VVEL_900mb, 
-    NETCDF_VVEL_875mb, NETCDF_VVEL_850mb, NETCDF_VVEL_825mb, NETCDF_VVEL_800mb, NETCDF_VVEL_775mb, NETCDF_VVEL_750mb, NETCDF_VVEL_725mb, NETCDF_VVEL_700mb],
-
-
-    'Five_Top': [NETCDF_VVEL_750mb, NETCDF_VVEL_925mb, NETCDF_VIS, NETCDF_VGRD_775mb, NETCDF_TMP_2m],
-    'Five_Top_2': [NETCDF_VVEL_925mb, NETCDF_TMP_2m, NETCDF_VGRD_775mb, NETCDF_VIS, NETCDF_VVEL_750mb],
-
-    'Physical_G1':[NETCDF_FRICV, NETCDF_UGRD_10m, NETCDF_UGRD_975mb, NETCDF_UGRD_950mb, NETCDF_UGRD_925mb, NETCDF_UGRD_900mb,
-    NETCDF_UGRD_875mb, NETCDF_UGRD_850mb, NETCDF_UGRD_825mb, NETCDF_UGRD_800mb, NETCDF_UGRD_775mb,  NETCDF_UGRD_750mb,
-    NETCDF_UGRD_725mb, NETCDF_UGRD_700mb, NETCDF_VGRD_10m, NETCDF_VGRD_975mb, NETCDF_VGRD_950mb, NETCDF_VGRD_925mb,
-    NETCDF_VGRD_900mb, NETCDF_VGRD_875mb, NETCDF_VGRD_850mb, NETCDF_VGRD_825mb, NETCDF_VGRD_800mb, NETCDF_VGRD_775mb, NETCDF_VGRD_750mb,
-    NETCDF_VGRD_725mb, NETCDF_VGRD_700mb],
-    'Physical_G2':[NETCDF_TKE_975mb, NETCDF_TKE_950mb, NETCDF_TKE_925mb, NETCDF_TKE_900mb, NETCDF_TKE_875mb, NETCDF_TKE_850mb, NETCDF_TKE_825mb,
-    NETCDF_TKE_800mb, NETCDF_TKE_775mb, NETCDF_TKE_750mb, NETCDF_TKE_725mb, NETCDF_TKE_700mb, NETCDF_Q975, NETCDF_Q950, NETCDF_Q925, NETCDF_Q900,
-    NETCDF_Q875, NETCDF_Q850, NETCDF_Q825, NETCDF_Q800, NETCDF_Q775,NETCDF_Q750, NETCDF_Q725, NETCDF_Q700],
-    'Physical_G3':[NETCDF_TMP_2m, NETCDF_TMP_975mb, NETCDF_TMP_950mb, NETCDF_TMP_925mb, NETCDF_TMP_900mb, NETCDF_TMP_875mb, NETCDF_TMP_850mb,
-    NETCDF_TMP_825mb, NETCDF_TMP_800mb, NETCDF_TMP_775mb, NETCDF_TMP_750mb, NETCDF_TMP_725mb, NETCDF_TMP_700mb, NETCDF_DPT_2m, NETCDF_RH_2m,
-    NETCDF_RH_975mb, NETCDF_RH_950mb, NETCDF_RH_925mb,NETCDF_RH_900mb, NETCDF_RH_875mb, NETCDF_RH_850mb, NETCDF_RH_825mb, NETCDF_RH_800mb,
-    NETCDF_RH_775mb, NETCDF_RH_750mb, NETCDF_RH_725mb, NETCDF_RH_700mb],
-    'Physical_G4':[NETCDF_Q, NETCDF_LCLT, NETCDF_VIS, NETCDF_VVEL_975mb, NETCDF_VVEL_950mb, NETCDF_VVEL_925mb, NETCDF_VVEL_900mb, NETCDF_VVEL_875mb, NETCDF_VVEL_850mb, NETCDF_VVEL_825mb,
-    NETCDF_VVEL_800mb, NETCDF_VVEL_775mb, NETCDF_VVEL_750mb, NETCDF_VVEL_725mb, NETCDF_VVEL_700mb], 
-    'Mixed':[NETCDF_SST, NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST], 
-    'MUR': [NETCDF_SST], 
-    'Generated': [NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST], 
-    'TMP': [NETCDF_TMP_SFC, NETCDF_TMP_2m, NETCDF_DPT_2m]
-    }
-
-
-
-NETCDF_MUR_NAMES   = [NETCDF_SST]
-NETCDF_TMP_NAMES   = [NETCDF_TMP_SFC, NETCDF_TMP_2m, NETCDF_DPT_2m]
-NETCDF_MIXED_NAMES = [NETCDF_SST, NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST]
-NETCDF_GEN_NAMES   = [NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST]
-
-
-DEFAULT_IMAGE_DIR_NAME = ('/data1/fog-data/fog-maps/')
-DEFAULT_TARGET_DIR_NAME = ('/data1/fog/Dataset/TARGET')
-
-
-DATE_FORMAT            = '%Y%m%d'
-DATE_FORMAT_REGEX      = '[0-9][0-9][0-9][0-9][0-1][0-9][0-3][0-9]'
-TIME_CYCLE_FORMAT      = '[0-9][0-9][0][0]'
-HOUR_PREDICTION_FORMAT = '[0][0-9][0-9]'
-
-### Defult Names and Settings
-PREDICTOR_NAMES_KEY  = 'predictor_names'
-PREDICTOR_MATRIX_KEY = 'predictor_matrix'
-CUBE_NAMES_KEY       = 'cube_name'
-SST_MATRIX_KEY       = 'sst_matrix'
-SST_NAME_KEY         = 'sst_name'
-
-
-
-DATE_FORMAT = '%Y%m%d'
-DATE_FORMAT_REGEX = '[0-9][0-9][0-9][0-9][0-1][0-9][0-3][0-9]'
-TIME_CYCLE_FORMAT = '[0-9][0-9][0][0]'
-HOUR_PREDICTION_FORMAT = '[0-9][0-9][0-9]'
-
-
-
-
-
-
 class input_dataframe_generater():
     
     def __init__(self, img_path = None, target_path = None, first_date_string = None, last_date_string = None, target_binarizing_thre = None):
@@ -252,9 +36,9 @@ class input_dataframe_generater():
 
 
         if img_path is None: 
-            self.img_path = DEFAULT_IMAGE_DIR_NAME
+            self.img_path = configs.DEFAULT_IMAGE_DIR_NAME
         if target_path is None: 
-            self.target_path = DEFAULT_TARGET_DIR_NAME
+            self.target_path = configs.DEFAULT_TARGET_DIR_NAME
 
 
 
@@ -319,7 +103,7 @@ class input_dataframe_generater():
 
         hour_prediction_names = '000'
         nam_file_names, mur_file_names, files_datecycle_string = [], [], []
-        for (root, dirs, files) in os.walk(DEFAULT_IMAGE_DIR_NAME):
+        for (root, dirs, files) in os.walk(configs.DEFAULT_IMAGE_DIR_NAME):
             dirs.sort()
             files.sort()
             if len(files) == 149:
@@ -490,16 +274,16 @@ class DataAdopter():
 
         # reading the nam map
         nc_nam_timeseries_files_path_list = self.dataframe.loc[idx]['nam_nc_files_path']
+        nc_mur_timeseries_files_path_list = self.dataframe.loc[idx]['mur_nc_files_path']
         nam_timeseries_predictor_matrix   = self.read_nc_nam_maps(nc_nam_timeseries_files_path_list)
         if self.map_structure == '1D': 
             nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix.values#.flatten()
+            nam_timeseries_predictor_matrix   = torch.as_tensor(nam_timeseries_predictor_matrix, dtype = torch.float32)
+
         else: 
             nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix[0, :,:,:5]
-        
-            
-
-        nam_timeseries_predictor_matrix   = torch.as_tensor(nam_timeseries_predictor_matrix, dtype = torch.float32)
-        nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix.permute(2, 0, 1)
+            nam_timeseries_predictor_matrix   = torch.as_tensor(nam_timeseries_predictor_matrix, dtype = torch.float32)
+            nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix.permute(2, 0, 1)
         
         # reading mur map 
         #nc_mur_timeseries_files_path_list = self.dataset.loc[idx]['mur_nc_files_path']
@@ -548,6 +332,7 @@ class DataAdopter():
             netcdf_file_006_names = netcdf_file_root_names[0:57] + '006_input.nc'
             netcdf_file_012_names = netcdf_file_root_names[0:57] + '012_input.nc'
             netcdf_file_024_names = netcdf_file_root_names[0:57] + '024_input.nc'
+            #netcdf_mur_024_names  = netcdf_mur_root_names[0:57] + '009_input.nc'
             netcdf_file_names_list = [netcdf_file_root_names, netcdf_file_006_names, netcdf_file_012_names, netcdf_file_024_names]
             lead_time_steps = ['000', '006', '012', '024']
 
@@ -555,35 +340,46 @@ class DataAdopter():
         timeseries_predictor_matrix = None
 
         for idx, nc_file_name in enumerate(netcdf_file_names_list):
-            
+            #data_type = netcdf_file_names_list[:4]
+
+            #if data_type == 'maps': 
             dataset_object = netCDF4.Dataset(nc_file_name)
 
-            predictor_matrix = None
-
+            nam_predictor_matrix = None
+            
             for this_predictor_name in NETCDF_PREDICTOR_NAMES:
-                this_predictor_matrix = np.array(
-                    dataset_object.variables[this_predictor_name][:], dtype=float
-                )
-
-                this_predictor_matrix = np.expand_dims(
-                    this_predictor_matrix, axis=-1)
                 
-                this_predictor_mean  = self.mean_std_dict[this_predictor_name][0]
-                this_predictor_std   = self.mean_std_dict[this_predictor_name][1] 
-
-                this_predictor_matrix = (this_predictor_matrix - this_predictor_mean)/this_predictor_std
-
-                if predictor_matrix is None:
-                    predictor_matrix = this_predictor_matrix + 0.
-                else:
-                    predictor_matrix = np.concatenate(
-                        (predictor_matrix, this_predictor_matrix), axis=-1
+                
+                    this_predictor_matrix = np.array(
+                        dataset_object.variables[this_predictor_name][:], dtype=float
                     )
+
+                    this_predictor_matrix = np.expand_dims(
+                        this_predictor_matrix, axis=-1)
+                    
+                    this_predictor_mean  = self.mean_std_dict[this_predictor_name][0]
+                    this_predictor_std   = self.mean_std_dict[this_predictor_name][1] 
+
+                    this_predictor_matrix = (this_predictor_matrix - this_predictor_mean)/this_predictor_std
+
+                    if nam_predictor_matrix is None:
+                        nam_predictor_matrix = this_predictor_matrix + 0.
+                    else:
+                        nam_predictor_matrix = np.concatenate(
+                            (nam_predictor_matrix, this_predictor_matrix), axis=-1
+                        )
+
+            #elif data_type == 'murs':
+
+            #    mur_dataset_object = netCDF4.Dataset(nc_file_name)
+            #    mur_predictor_matrix = np.array(
+            #               mur_dataset_object.variables['analysed_sst'][:], dtype=float
+            #           )
 
             if self.map_structure == '1D':
 
                 time_steps = lead_time_steps[idx]
-                this_timeseries_predictor_matrix = self.return_tabular_data(predictor_matrix, time_steps) 
+                this_timeseries_predictor_matrix = self.return_tabular_data(nam_predictor_matrix, time_steps) 
 
                 if timeseries_predictor_matrix is None:
                     timeseries_predictor_matrix = this_timeseries_predictor_matrix
@@ -595,32 +391,32 @@ class DataAdopter():
             elif self.map_structure == '2D':
 
                 if timeseries_predictor_matrix is None:
-                    timeseries_predictor_matrix = predictor_matrix + 0.
+                    timeseries_predictor_matrix = nam_predictor_matrix + 0.
 
                 else:
                     timeseries_predictor_matrix = np.concatenate(
-                        (timeseries_predictor_matrix, predictor_matrix), axis=-1
+                        (timeseries_predictor_matrix, nam_predictor_matrix), axis=-1
                     )
 
 
             elif self.map_structure == '3D':
 
                 if timeseries_predictor_matrix is None:
-                    timeseries_predictor_matrix = predictor_matrix + 0.
+                    timeseries_predictor_matrix = nam_predictor_matrix + 0.
 
                 else:
                     timeseries_predictor_matrix = np.concatenate(
-                        (timeseries_predictor_matrix, predictor_matrix), axis=-1
+                        (timeseries_predictor_matrix, nam_predictor_matrix), axis=-1
                     )
 
             elif self.map_structure == '4D':
 
                 if timeseries_predictor_matrix is None:
-                    timeseries_predictor_matrix = predictor_matrix + 0.
+                    timeseries_predictor_matrix = nam_predictor_matrix + 0.
 
                 else:
                     timeseries_predictor_matrix = np.concatenate(
-                        (timeseries_predictor_matrix, predictor_matrix), axis=0
+                        (timeseries_predictor_matrix, nam_predictor_matrix), axis=0
                     )
         
         return timeseries_predictor_matrix
@@ -657,7 +453,7 @@ class DataAdopter():
 #===========
 def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
 
-    save_dir = '/data1/fog/TransMAP/EXPs/' + Exp_name
+    save_dir = '/data1/fog/SparkMET/EXPs/' + Exp_name
     isExist  = os.path.isdir(save_dir)
 
     if not isExist:
@@ -671,12 +467,13 @@ def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
     # creating the entire data: 
     dataset = input_dataframe_generater(img_path = None, 
                                         target_path = None, 
-                                        first_date_string = data_config_dict.start_date, 
-                                        last_date_string = data_config_dict.finish_date, 
-                                        target_binarizing_thre = data_config_dict.vis_threshold).dataframe_generation()
+                                        first_date_string = data_config_dict['start_date'], 
+                                        last_date_string = data_config_dict['finish_date'], 
+                                        target_binarizing_thre = data_config_dict['vis_threshold']).dataframe_generation()
 
     # split the data into train, validation and test:
-    train_df, valid_df, test_df = split_data_train_valid_test(dataset, year_split_dict = data_config_dict.data_split_dict)
+    train_df, valid_df, test_df = split_data_train_valid_test(dataset, year_split_dict = data_config_dict['data_split_dict'])
+    
     _ = engine.print_report(train_df, valid_df, test_df)
 
     # calculating the mean and std of training variables: 
@@ -684,8 +481,8 @@ def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
     isDictExists = os.path.isfile(dict_name)
     if not isDictExists:
         norm_mean_std_dict = return_train_variable_mean_std(train_df, 
-                                                    predictor_names = data_config_dict.predictor_names, 
-                                                    lead_time_pred = data_config_dict.lead_time_pred).return_mean_std_dict()
+                                                    predictor_names = data_config_dict['predictor_names'], 
+                                                    lead_time_pred = data_config_dict['lead_time_pred']).return_mean_std_dict()
         #print("--- Normalize data: %s seconds ---" % (time.time() - start_time))
         with open(dict_name, "w") as outfile:
             json.dump(norm_mean_std_dict, outfile)
@@ -693,26 +490,28 @@ def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
         with open(dict_name, 'r') as file:
             norm_mean_std_dict = json.load(file)
 
+
     train_dataset = DataAdopter(train_df, 
-                                map_structure         = data_config_dict.data_straucture, 
-                                predictor_names       = data_config_dict.predictor_names, 
-                                lead_time_pred        = data_config_dict.lead_time_pred, 
+                                map_structure         = data_config_dict['data_straucture'], 
+                                predictor_names       = data_config_dict['predictor_names'], 
+                                lead_time_pred        = data_config_dict['lead_time_pred'], 
                                 mean_std_dict         = norm_mean_std_dict,
-                                point_geolocation_dic = data_config_dict.points_coords)
+                                point_geolocation_dic = data_config_dict['points_coords'])
 
     valid_dataset = DataAdopter(valid_df, 
-                                map_structure         = data_config_dict.data_straucture, 
-                                predictor_names       = data_config_dict.predictor_names, 
-                                lead_time_pred        = data_config_dict.lead_time_pred, 
+                                map_structure         = data_config_dict['data_straucture'], 
+                                predictor_names       = data_config_dict['predictor_names'], 
+                                lead_time_pred        = data_config_dict['lead_time_pred'], 
                                 mean_std_dict         = norm_mean_std_dict,
-                                point_geolocation_dic = data_config_dict.points_coords)
+                                point_geolocation_dic = data_config_dict['points_coords'])
 
     test_dataset = DataAdopter(test_df, 
-                                map_structure         = data_config_dict.data_straucture, 
-                                predictor_names       = data_config_dict.predictor_names, 
-                                lead_time_pred        = data_config_dict.lead_time_pred,  
+                                map_structure         = data_config_dict['data_straucture'], 
+                                predictor_names       = data_config_dict['predictor_names'], 
+                                lead_time_pred        = data_config_dict['lead_time_pred'],  
                                 mean_std_dict         = norm_mean_std_dict,
-                                point_geolocation_dic = data_config_dict.points_coords)
+                                point_geolocation_dic = data_config_dict['points_coords'])
+
 
     data_loader_training = torch.utils.data.DataLoader(train_dataset, batch_size= training_config_dict['batch_size'], 
                                                     shuffle=True,  num_workers=8) 

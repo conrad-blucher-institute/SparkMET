@@ -8,13 +8,11 @@ import torch.optim as optim
 import time
 import json
 
-from models import configs
 from src import dataloader
-from models import transformers, engine
+from models import transformers, engine, configs
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Check if there is GPU(s): {torch.cuda.is_available()}")
-
 
 
 
@@ -27,10 +25,10 @@ def main(data_config_dict: dict,
     data_loader_training, data_loader_validate, data_loader_testing = dataloader.return_data_loaders(data_config_dict, training_config_dict, Exp_name)
 
      
-    if data_config_dict.data_straucture == '1D': 
+    if data_config_dict['data_straucture'] == '1D': 
         model = transformers.Transformer1d(model_config_dict)
 
-    elif data_config_dict.data_straucture == '2D':
+    elif data_config_dict['data_straucture'] == '2D':
         model_type = 'ViT-L_32'
         config = transformers.CONFIGS[model_type]
         model = transformers.VisionTransformer(config, img_size=32, num_classes=2,)
@@ -41,9 +39,9 @@ def main(data_config_dict: dict,
 
 
     parallel_net, loss_stat = engine.train(parallel_net, 
+                                            training_config_dict,
                                             data_loader_training, 
                                             data_loader_validate, 
-                                            data_loader_testing, 
                                             Exp_name)
 
     list_output = engine.predict(parallel_net, 
@@ -56,12 +54,12 @@ def main(data_config_dict: dict,
 
 if __name__ == "__main__":
 
-    main(data_config_dict     = config.data_config_dict,
-        model_config_dict     = model_config_dict, 
-        training_config_dict  = training_config_dict,
-        Exp_name              = 'test')
+    main(data_config_dict     = configs.data_config_dict,
+        model_config_dict     = configs.SparkMET_1D_config(), 
+        training_config_dict  = configs.get_train_hyperparameter_config,
+        Exp_name              = 'Ex001_1D')
 
 
-import config
+
 
 

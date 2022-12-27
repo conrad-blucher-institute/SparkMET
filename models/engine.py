@@ -1,35 +1,32 @@
 import numpy as np
 import pandas as pd
-import os 
-import json
 import torch 
-import matplotlib.pyplot as plt
-import seaborn as sns
-sns.set(rc={'axes.facecolor':'white', 'figure.facecolor':'white'})
-sns.set(font_scale=1.5)
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print(torch.cuda.is_available())
-from src import dataloader
-from models import transformers, engine
 from sklearn import metrics
 from sklearn.metrics import roc_curve, auc
 from sklearn.metrics import confusion_matrix
 import math
 from math import log
 import torch.nn as nn
+import torch.optim as optim
+import matplotlib.pyplot as plt
+import seaborn as sns
+import time 
+
+
+
+
+
 
 def print_report(train_df, valid_df, test_df):
     train_fog_cases = train_df['vis_category'].value_counts()['fog']
     valid_fog_cases = valid_df['vis_category'].value_counts()['fog']
     test_fog_cases = test_df['vis_category'].value_counts()['fog']
-    print("#================================ Summary of Dataset =================================#")
+    print("#================================ Summary of Dataset ==================#")
     print(f"number of training samples:   {train_df.shape[0]} | number of training fog cases:   {train_fog_cases}")
     print(f"number of validation samples: {valid_df.shape[0]} | number of validation fog cases: {valid_fog_cases}")
     print(f"number of test samples:       {test_df.shape[0]} | number of test fog cases:       {test_fog_cases}")
-    print("#=====================================================================================#")
-
-
-
+    print("#======================================================================#")
 
 class EarlyStopping():
     def __init__(self, tolerance=30, min_delta=0):
@@ -82,8 +79,6 @@ def save_loss_df(loss_stat, loss_df_name, loss_fig_name):
     sns.lineplot(data=df, x = "epochs", y="value", hue="variable").set_title('Train-Val Loss/Epoch')
     plt.ylim(0, df['value'].max())
     plt.savefig(loss_fig_name, dpi = 300)
-
-
 
 class Evaluation(): 
     def __init__(self, ytrue, ypred, report_file_name = None, figure_name = None):
@@ -175,12 +170,10 @@ class Evaluation():
         
         return BS, BSS
 
-
-
 def predict(model, data_loader_training, data_loader_validate, data_loader_testing, Exp_name = None,):
 
 
-    save_dir = '/data1/fog/TransMAP/EXPs/' + Exp_name
+    save_dir = '/data1/fog/SparkMET/EXPs/' + Exp_name
     best_model_name      = save_dir + '/best_model_' + Exp_name + '.pth'
 
     train_csv_file = save_dir + '/train_prob_' + Exp_name + '.csv'
@@ -377,7 +370,7 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
 def train(parallel_net, training_config_dict, data_loader_training, data_loader_validate, Exp_name):
 
 
-    save_dir = '/data1/fog/TransMAP/EXPs/' + Exp_name
+    save_dir = '/data1/fog/SparkMET/EXPs/' + Exp_name
  
     best_model_name      = save_dir + '/best_model_' + Exp_name + '.pth'
     loss_fig_name        = save_dir + '/loss_' + Exp_name + '.png'
@@ -391,7 +384,7 @@ def train(parallel_net, training_config_dict, data_loader_training, data_loader_
     loss_stats = {'train': [],"val": []}
 
     best_val_loss = 100000 # initial dummy value
-    early_stopping = engine.EarlyStopping(tolerance = training_config_dict['early_stop_tolerance'], min_delta=50)
+    early_stopping = EarlyStopping(tolerance = training_config_dict['early_stop_tolerance'], min_delta=50)
     step  = 0
     #==============================================================================================================#
     #==============================================================================================================#
@@ -421,7 +414,7 @@ def train(parallel_net, training_config_dict, data_loader_training, data_loader_
             #train_acc = engine.binary_acc(train_out, train_class_true.unsqueeze(1))
             #train_epoch_acc += train_acc.item()
 
-        #scheduler.step(_)
+        # scheduler.step(_)
         # VALIDATION    
         with torch.no_grad():
             
@@ -469,7 +462,6 @@ def train(parallel_net, training_config_dict, data_loader_training, data_loader_
     _ = save_loss_df(loss_stats, loss_df_name, loss_fig_name)
 
     return parallel_net, loss_stats
-
 
 def extract_selfattention_maps(transformer_encoder,x,mask,src_key_padding_mask):
     attention_maps = []

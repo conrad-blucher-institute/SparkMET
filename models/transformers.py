@@ -38,11 +38,11 @@ class Transformer1d(nn.Module):
         super(Transformer1d, self).__init__()
 
         self.d_model         = model_config_dict.dim_model
-        self.nhead           = model_config_dict.num_heads
-        self.dim_feedforward = model_config_dict.mlp_dim
-        self.dropout         = model_config_dict.dropout_rate
-        self.activation      = model_config_dict.activation
-        self.n_classes       = model_config_dict.num_class
+        self.nhead           = model_config_dict.transformer['num_heads']
+        self.dim_feedforward = model_config_dict.transformer['mlp_dim']
+        self.dropout         = model_config_dict.transformer['dropout_rate']
+        self.activation      = model_config_dict.transformer['activation']
+        self.n_classes       = model_config_dict.transformer['num_class']
         self.verbose         = False
         
         encoder_layer = nn.TransformerEncoderLayer(d_model = self.d_model, 
@@ -163,7 +163,6 @@ class Mlp(nn.Module):
         x = self.fc2(x)
         x = self.dropout(x)
         return x
-
 
 class Embeddings(nn.Module):
     """Construct the embeddings from patch, position embeddings.
@@ -391,5 +390,5 @@ class VisionTransformer(nn.Module):
 
 
 CONFIGS = {
-    'ViT-L_32': configs.get_ViT_config()
+    'ViT-L_32': configs.SparkMET_2D_config()
 }
