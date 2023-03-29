@@ -241,10 +241,10 @@ def split_data_train_valid_test(dataset, year_split_dict = None):
 
 class DataAdopter(): 
 
-    def __init__(self, dataframe, map_structure = None, 
-                                predictor_names = None, 
-                                lead_time_pred = None, 
-                                mean_std_dict  = None,
+    def __init__(self, dataframe, map_structure       = None, 
+                                predictor_names       = None, 
+                                lead_time_pred        = None, 
+                                mean_std_dict         = None,
                                 point_geolocation_dic = None): 
 
         self.dataframe            = dataframe
@@ -253,7 +253,6 @@ class DataAdopter():
         self.lead_time_pred       = lead_time_pred
         self.mean_std_dict        = mean_std_dict 
         self.point_geolocation_dic= point_geolocation_dic
-
 
         #self.dataframe       = self.binarize_onehot_label_df()
         self.label_onehot_df = pd.get_dummies(self.dataframe.vis_category)
@@ -271,17 +270,17 @@ class DataAdopter():
         date_cycletime = self.dataframe.loc[idx]['date_cycletime']
         visibility     = self.dataframe.loc[idx]['vis']
 
-
         # reading the nam map
         nc_nam_timeseries_files_path_list = self.dataframe.loc[idx]['nam_nc_files_path']
         nc_mur_timeseries_files_path_list = self.dataframe.loc[idx]['mur_nc_files_path']
         nam_timeseries_predictor_matrix   = self.read_nc_nam_maps(nc_nam_timeseries_files_path_list)
         if self.map_structure == '1D': 
             nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix.values#.flatten()
+            #print(nam_timeseries_predictor_matrix.shape)
             nam_timeseries_predictor_matrix   = torch.as_tensor(nam_timeseries_predictor_matrix, dtype = torch.float32)
 
         else: 
-            nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix[0, :,:,:5]
+            nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix[0, :,:, :5]
             nam_timeseries_predictor_matrix   = torch.as_tensor(nam_timeseries_predictor_matrix, dtype = torch.float32)
             nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix.permute(2, 0, 1)
         
@@ -292,7 +291,6 @@ class DataAdopter():
         #=============================================== reading the target visibility =======================================#
         onehotlabel = self.label_onehot_df.loc[idx]
         onehotlabel = torch.as_tensor(onehotlabel, dtype=torch.long)
-
 
         label = self.dataframe.loc[idx]['vis_class'] 
         label = torch.as_tensor(label, dtype=torch.long)#dtype = torch.float32
@@ -458,22 +456,34 @@ def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
 
     if not isExist:
         os.mkdir(save_dir)
+        os.makedirs(save_dir + '/coords')
 
-    best_model_name      = save_dir + '/best_model_' + Exp_name + '.pth'
-    loss_fig_name        = save_dir + '/loss_' + Exp_name + '.png'
-    loss_df_name         = save_dir + '/loss_' + Exp_name + '.csv' 
-    dict_name            = save_dir + '/mean_std_' + Exp_name + '.json' 
+    train_df_name  = save_dir + '/coords/train.csv' 
+    valid_df_name  = save_dir + '/coords/valid.csv'
+    test_df_name   = save_dir + '/coords/test.csv' 
+
+    dict_name      = save_dir + '/coords/mean_std.json' 
 
     # creating the entire data: 
-    dataset = input_dataframe_generater(img_path = None, 
-                                        target_path = None, 
-                                        first_date_string = data_config_dict['start_date'], 
-                                        last_date_string = data_config_dict['finish_date'], 
-                                        target_binarizing_thre = data_config_dict['vis_threshold']).dataframe_generation()
+    isDFExists = os.path.isfile(train_df_name)
+    if not isDFExists:
+        dataset = input_dataframe_generater(img_path               = None, 
+                                            target_path            = None, 
+                                            first_date_string      = data_config_dict['start_date'], 
+                                            last_date_string       = data_config_dict['finish_date'], 
+                                            target_binarizing_thre = data_config_dict['vis_threshold']).dataframe_generation()
 
-    # split the data into train, validation and test:
-    train_df, valid_df, test_df = split_data_train_valid_test(dataset, year_split_dict = data_config_dict['data_split_dict'])
-    
+        # split the data into train, validation and test:
+        train_df, valid_df, test_df = split_data_train_valid_test(dataset, year_split_dict = data_config_dict['data_split_dict'])
+        train_df.to_csv(train_df_name)
+        valid_df.to_csv(valid_df_name)
+        test_df.to_csv(test_df_name)
+    else: 
+        train_df = pd.read_csv(train_df_name)
+        valid_df = pd.read_csv(valid_df_name)
+        test_df  = pd.read_csv(test_df_name)
+
+
     _ = engine.print_report(train_df, valid_df, test_df)
 
     # calculating the mean and std of training variables: 
@@ -490,7 +500,7 @@ def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
         with open(dict_name, 'r') as file:
             norm_mean_std_dict = json.load(file)
 
-
+                                                                                                                                                                                                                                       
     train_dataset = DataAdopter(train_df, 
                                 map_structure         = data_config_dict['data_straucture'], 
                                 predictor_names       = data_config_dict['predictor_names'], 
@@ -517,7 +527,7 @@ def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
                                                     shuffle=True,  num_workers=8) 
     data_loader_validate = torch.utils.data.DataLoader(valid_dataset, batch_size= training_config_dict['batch_size'], 
                                                     shuffle=False,  num_workers=8)
-    data_loader_testing = torch.utils.data.DataLoader(test_dataset, batch_size= training_config_dict['batch_size'], 
+    data_loader_testing  = torch.utils.data.DataLoader(test_dataset, batch_size= training_config_dict['batch_size'], 
                                                     shuffle=False,  num_workers=8)
     
 

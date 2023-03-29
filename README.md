@@ -1,1 +1,1 @@
-### SparkMet: Transformer-based Meteorological and Environmental Tool 
+### SparkMET: Transformer-based Meteorological and Environmental Tool 

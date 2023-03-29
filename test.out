@@ -1,7 +1,0 @@
-nohup: ignoring input
-Check if there is GPU(s): True
-#================================ Summary of Dataset ==================#
-number of training samples:   5460 | number of training fog cases:   103
-number of validation samples: 2332 | number of validation fog cases: 31
-number of test samples:       2228 | number of test fog cases:       67
-#======================================================================#

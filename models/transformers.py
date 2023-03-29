@@ -30,7 +30,6 @@ class Transformer1d(nn.Module):
         out: (n_samples, n_classes)
         
     Pararmetes:
-        
     """
 
     #def __init__(self, d_model, nhead, dim_feedforward, n_classes, dropout, activation, verbose=False):
@@ -167,7 +166,7 @@ class Mlp(nn.Module):
 class Embeddings(nn.Module):
     """Construct the embeddings from patch, position embeddings.
     """
-    def __init__(self, config, img_size, in_channels = 5):
+    def __init__(self, config, img_size, in_channels = 93):
         super(Embeddings, self).__init__()
         img_size = _pair(img_size)
 
@@ -175,16 +174,17 @@ class Embeddings(nn.Module):
         patch_size = _pair(config.patches["size"])
         n_patches = (img_size[0] // patch_size[0]) * (img_size[1] // patch_size[1]) # in_channels # 
 
-        self.patch_embeddings = Conv2d(in_channels = in_channels,
-                                       out_channels=config.hidden_size,
-                                       kernel_size=patch_size,
-                                       stride=patch_size)
+        self.patch_embeddings = Conv2d(in_channels  = config.in_channels,
+                                       out_channels = config.hidden_size,
+                                       kernel_size  = patch_size,
+                                       stride       = patch_size)
         self.position_embeddings = nn.Parameter(torch.zeros(1, n_patches+1, config.hidden_size))
         self.cls_token           = nn.Parameter(torch.zeros(1, 1, config.hidden_size))
 
         self.dropout    = Dropout(config.transformer["dropout_rate"])
 
     def forward(self, x):
+
         B = x.shape[0]
         cls_tokens = self.cls_token.expand(B, -1, -1)
 
@@ -211,7 +211,6 @@ class Embeddings(nn.Module):
         embeddings = self.dropout(embeddings)
 
         return embeddings
-
 
 class Block(nn.Module):
     def __init__(self, config, vis):
@@ -274,7 +273,6 @@ class Block(nn.Module):
             self.ffn_norm.weight.copy_(np2th(weights[pjoin(ROOT, MLP_NORM, "scale")]))
             self.ffn_norm.bias.copy_(np2th(weights[pjoin(ROOT, MLP_NORM, "bias")]))
 
-
 class Encoder(nn.Module):
     def __init__(self, config, vis):
         super(Encoder, self).__init__()
@@ -294,7 +292,6 @@ class Encoder(nn.Module):
         encoded = self.encoder_norm(hidden_states)
         return encoded, attn_weights
 
-
 class Transformer(nn.Module):
     def __init__(self, config, img_size, vis):
         super(Transformer, self).__init__()
@@ -306,13 +303,12 @@ class Transformer(nn.Module):
         encoded, attn_weights = self.encoder(embedding_output)
         return encoded, attn_weights
 
-
 class VisionTransformer(nn.Module):
     def __init__(self, config, img_size=32, num_classes=2, zero_head=False, vis=True):
         super(VisionTransformer, self).__init__()
         self.num_classes = num_classes
-        self.zero_head = zero_head
-        self.classifier = config.classifier
+        self.zero_head   = zero_head
+        self.classifier  = config.classifier
 
         self.transformer = Transformer(config, img_size, vis)
         self.head        = Linear(config.hidden_size, num_classes)
@@ -323,15 +319,15 @@ class VisionTransformer(nn.Module):
         logits = self.head(x[:, 0])
         pred   = self.softmax(logits)
 
-        if labels is not None:
+        #if labels is not None:
             #loss_fct = CrossEntropyLoss()
-            loss_fct = torch.nn.NLLLoss()
+        #    loss_fct = torch.nn.NLLLoss()
             #loss = loss_fct(logits.view(-1, self.num_classes), labels.view(-1))
-            loss = loss_fct(pred, labels.view(-1))
+        #    loss = loss_fct(pred, labels.view(-1))
 
-            return loss
-        else:
-            return pred, attn_weights
+        #    return loss
+        #else:
+        return attn_weights, pred 
 
     def load_from(self, weights):
         with torch.no_grad():

@@ -213,11 +213,11 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             train_label_trues.append(train_label_true)
 
             input_train      = sample['input'].to(0)
-            logits, attn_weights = model(input_train)
+            logits, train_out = model(input_train)
  
 
             #_, train_out, _ = model(input_train)
-            train_out = torch.exp(logits)
+            train_out = torch.exp(train_out)
             train_out = train_out.detach().cpu().numpy()
 
             train_fog_preds.append(train_out[:, 1])
@@ -271,22 +271,22 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             valid_label_trues.append(valid_label_true)
 
             input_val            = sample['input'].to(0)
-            logits, attn_weights = model(input_val)
+            logits, pred_val = model(input_val)
             #m = nn.Softmax(dim=1)
             #pred_val = m(logits)
-            pred_val = torch.exp(logits)
+            pred_val = torch.exp(pred_val)
 
             pred_val = pred_val.detach().cpu().numpy()
             valid_fog_preds.append(pred_val[:, 1])
             valid_nonfog_preds.append(pred_val[:, 0])
 
 
-        valid_date_times  = np.concatenate(valid_date_times)
-        valid_round_times = np.concatenate(valid_round_times)
-        valid_cycletimes  = np.concatenate(valid_cycletimes)
-        valid_visibilitys = np.concatenate(valid_visibilitys)
-        valid_label_trues = np.concatenate(valid_label_trues)
-        valid_fog_preds = np.concatenate(valid_fog_preds)
+        valid_date_times   = np.concatenate(valid_date_times)
+        valid_round_times  = np.concatenate(valid_round_times)
+        valid_cycletimes   = np.concatenate(valid_cycletimes)
+        valid_visibilitys  = np.concatenate(valid_visibilitys)
+        valid_label_trues  = np.concatenate(valid_label_trues)
+        valid_fog_preds    = np.concatenate(valid_fog_preds)
         valid_nonfog_preds = np.concatenate(valid_nonfog_preds)
 
         valid_ypred = np.empty([valid_fog_preds.shape[0], 2], dtype = float)
@@ -328,22 +328,22 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             test_label_trues.append(test_label_true)
 
             input_test      = sample['input'].to(0)
-            logits, attn_weights = model(input_test)
+            logits, pred_test = model(input_test)
             #m = nn.Softmax(dim=1)
             #pred_test = m(logits)
             #_, pred_test, _ = model(input_test)
-            pred_test = torch.exp(logits)
+            pred_test = torch.exp(pred_test)
             pred_test = pred_test.detach().cpu().numpy()
             test_fog_preds.append(pred_test[:, 1])
             test_nonfog_preds.append(pred_test[:, 0])
 
 
-        test_date_times  = np.concatenate(test_date_times)
-        test_round_times = np.concatenate(test_round_times)
-        test_cycletimes  = np.concatenate(test_cycletimes)
-        test_visibilitys = np.concatenate(test_visibilitys)
-        test_label_trues = np.concatenate(test_label_trues)
-        test_fog_preds = np.concatenate(test_fog_preds)
+        test_date_times   = np.concatenate(test_date_times)
+        test_round_times  = np.concatenate(test_round_times)
+        test_cycletimes   = np.concatenate(test_cycletimes)
+        test_visibilitys  = np.concatenate(test_visibilitys)
+        test_label_trues  = np.concatenate(test_label_trues)
+        test_fog_preds    = np.concatenate(test_fog_preds)
         test_nonfog_preds = np.concatenate(test_nonfog_preds)
 
         test_ypred = np.empty([test_fog_preds.shape[0], 2], dtype = float)
@@ -367,19 +367,13 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
 
     return [train_output, valid_output, test_output]
 
-def train(parallel_net, training_config_dict, data_loader_training, data_loader_validate, Exp_name):
-
-
+def train(model, optimizer, loss_func, training_config_dict, data_loader_training, data_loader_validate, Exp_name):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     save_dir = '/data1/fog/SparkMET/EXPs/' + Exp_name
  
     best_model_name      = save_dir + '/best_model_' + Exp_name + '.pth'
     loss_fig_name        = save_dir + '/loss_' + Exp_name + '.png'
     loss_df_name         = save_dir + '/loss_' + Exp_name + '.csv' 
-
-    optimizer = optim.Adam(parallel_net.parameters(), lr = training_config_dict['lr'], weight_decay = training_config_dict['wd'])
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
-    loss_func = torch.nn.NLLLoss() 
-
 
     loss_stats = {'train': [],"val": []}
 
@@ -390,18 +384,17 @@ def train(parallel_net, training_config_dict, data_loader_training, data_loader_
     #==============================================================================================================#
     epochs = training_config_dict['epochs']
     for epoch in range(1, epochs+1):
+
         training_start_time = time.time()
         # TRAINING
         train_epoch_loss = 0
-        train_epoch_acc  = 0
-        parallel_net.train()
-
+        model.train()
+        print(f"============================================== Epoch")
         for batch_idx, sample in enumerate(data_loader_training):
             
-            input_train      = sample['input'].to(0)
-            train_label_true = sample['label_class'].to(0)
-
-            _, train_out, _ = parallel_net(input_train)
+            input_train      = sample['input'].to(device)
+            train_label_true = sample['label_class'].to(device)
+            train_out01, train_out = model(input_train)
             optimizer.zero_grad()
 
             train_loss  = loss_func(train_out, train_label_true) #
@@ -411,29 +404,24 @@ def train(parallel_net, training_config_dict, data_loader_training, data_loader_
 
             train_epoch_loss += train_loss.item()
 
-            #train_acc = engine.binary_acc(train_out, train_class_true.unsqueeze(1))
-            #train_epoch_acc += train_acc.item()
-
         # scheduler.step(_)
         # VALIDATION    
         with torch.no_grad():
             
             val_epoch_loss = 0
             #val_epoch_acc = 0
-            parallel_net.eval()
+            model.eval()
             for batch, sample in enumerate(data_loader_validate):
                 
-                input_val      = sample['input'].to(0)
+                input_val      = sample['input'].to(device)
                 class_true_val = sample['onehotlabel'].to(0)
-                label_true_val = sample['label_class'].to(0)
+                label_true_val = sample['label_class'].to(device)
 
-                _, pred_val, _ = parallel_net(input_val)
+                pred_val01, pred_val = model(input_val)
             
                 val_loss       = loss_func(pred_val, label_true_val)
                 val_epoch_loss += val_loss.item()
 
-                #valid_acc = engine.binary_acc(train_out, train_class_true.unsqueeze(1))
-                #val_epoch_acc += valid_acc.item()
                 
         training_duration_time = (time.time() - training_start_time)
 
@@ -444,7 +432,7 @@ def train(parallel_net, training_config_dict, data_loader_training, data_loader_
         if (val_epoch_loss/len(data_loader_validate)) < best_val_loss or epoch==0:
                     
             best_val_loss=(val_epoch_loss/len(data_loader_validate))
-            torch.save(parallel_net.state_dict(), best_model_name)
+            torch.save(model.state_dict(), best_model_name)
             
             status = True
 
@@ -461,9 +449,9 @@ def train(parallel_net, training_config_dict, data_loader_training, data_loader_
             break
     _ = save_loss_df(loss_stats, loss_df_name, loss_fig_name)
 
-    return parallel_net, loss_stats
+    return model, loss_stats
 
-def extract_selfattention_maps(transformer_encoder,x,mask,src_key_padding_mask):
+def extract_selfattention_maps(transformer_encoder,x, mask, src_key_padding_mask):
     attention_maps = []
     num_layers = transformer_encoder.num_layers
     num_heads = transformer_encoder.layers[0].self_attn.num_heads

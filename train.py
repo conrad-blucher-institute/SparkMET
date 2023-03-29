@@ -15,49 +15,48 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Check if there is GPU(s): {torch.cuda.is_available()}")
 
 
+Exp_name = 'New_2D'
+data_loader_training, data_loader_validate, data_loader_testing = dataloader.return_data_loaders(configs.data_config_dict, 
+                                                                                                 configs.get_train_hyperparameter_config, 
+                                                                                                 Exp_name)
 
-def main(data_config_dict: dict,
-        model_config_dict : dict, 
-        training_config_dict: dict,
-        Exp_name: str,
-):
+#model = transformers.Transformer1d(configs.SparkMET_1D_config()).to(device)
+model = transformers.VisionTransformer(configs.SparkMET_2D_config(), 
+                                       img_size=32, 
+                                       num_classes=2,).to(device)
+loss_func = torch.nn.NLLLoss() 
 
-    data_loader_training, data_loader_validate, data_loader_testing = dataloader.return_data_loaders(data_config_dict, training_config_dict, Exp_name)
+optimizer = optim.Adam(model.parameters(), 
+                        lr = configs.get_train_hyperparameter_config['lr'], 
+                        weight_decay = configs.get_train_hyperparameter_config['wd'])
 
-     
-    if data_config_dict['data_straucture'] == '1D': 
-        model = transformers.Transformer1d(model_config_dict)
+model, loss_stat = engine.train(model, optimizer, loss_func,
+                                        configs.get_train_hyperparameter_config,
+                                        data_loader_training, 
+                                        data_loader_validate,  
+                                        Exp_name)
 
-    elif data_config_dict['data_straucture'] == '2D':
-        model_type = 'ViT-L_32'
-        config = transformers.CONFIGS[model_type]
-        model = transformers.VisionTransformer(config, img_size=32, num_classes=2,)
-
-
-    parallel_net = nn.DataParallel(model, device_ids = [0, 1, 2, 3])
-    parallel_net = parallel_net.to(0)
-
-
-    parallel_net, loss_stat = engine.train(parallel_net, 
-                                            training_config_dict,
-                                            data_loader_training, 
-                                            data_loader_validate, 
-                                            Exp_name)
-
-    list_output = engine.predict(parallel_net, 
-                                            data_loader_training, 
-                                            data_loader_validate, 
-                                            data_loader_testing, 
-                                            Exp_name = Exp_name,)
+list_output = engine.predict(model, 
+                            data_loader_training, 
+                                data_loader_validate, 
+                                data_loader_testing, 
+                                Exp_name = Exp_name,)
 
 
+#def main(data_config_dict: dict,
+#        model_config_dict : dict, 
+#       training_config_dict: dict,
+#        Exp_name: str,
+#):
 
-if __name__ == "__main__":
+#parallel_net = nn.DataParallel(model, device_ids = [0, 1, 2, 3])
+#parallel_net = parallel_net.to(0)
 
-    main(data_config_dict     = configs.data_config_dict,
-        model_config_dict     = configs.SparkMET_1D_config(), 
-        training_config_dict  = configs.get_train_hyperparameter_config,
-        Exp_name              = 'Ex001_1D')
+#if __name__ == "__main__":
+#    main(data_config_dict     = configs.data_config_dict,
+#        model_config_dict     = configs.SparkMET_1D_config(), 
+#       training_config_dict  = configs.get_train_hyperparameter_config,
+#       Exp_name              = 'test')
 
 
 
