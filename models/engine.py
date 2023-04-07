@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import torch 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device ="cuda" if torch.cuda.is_available() else "cpu"
 from sklearn import metrics
 from sklearn.metrics import roc_curve, auc
 from sklearn.metrics import confusion_matrix
@@ -195,6 +195,8 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
     with torch.no_grad():
         model.eval()
         train_date_times, train_round_times, train_cycletimes, train_visibilitys, train_label_trues, train_fog_preds, train_nonfog_preds= [], [], [], [], [], [], []
+        train_attention_outputs, valid_attention_outputs, test_attention_outputs = [], [], []
+        train_inputs, valid_inputs, test_inputs = [], [], []
         for batch_idx, sample in enumerate(data_loader_training):
 
             train_date_time  = sample['date_time']
@@ -213,21 +215,40 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             train_label_trues.append(train_label_true)
 
             input_train      = sample['input'].to(0)
-            logits, train_out = model(input_train)
- 
 
-            #_, train_out, _ = model(input_train)
+            attention_scores, train_out = model(input_train)
+            # Output
             train_out = torch.exp(train_out)
             train_out = train_out.detach().cpu().numpy()
 
             train_fog_preds.append(train_out[:, 1])
             train_nonfog_preds.append(train_out[:, 0])
 
-        train_date_times = np.concatenate(train_date_times)
-        train_round_times = np.concatenate(train_round_times)
-        train_cycletimes = np.concatenate(train_cycletimes)
-        train_visibilitys = np.concatenate(train_visibilitys)
-        train_label_trues = np.concatenate(train_label_trues)
+            # Attention scores: 
+            layer_attention_outputs = None
+            for layer_output in attention_scores:
+                layer_output = np.expand_dims(layer_output.detach().cpu().numpy(), axis  = -1)
+                layer_output = layer_output[:, :, 1:, 1:, :]
+                if layer_attention_outputs is None: 
+                    layer_attention_outputs = layer_output
+                else: 
+                    layer_attention_outputs = np.concatenate((layer_attention_outputs, layer_output), axis = -1)
+            train_attention_outputs.append(layer_attention_outputs) 
+            
+            train_inputs.append(input_train.detach().cpu().numpy())
+
+
+
+        train_attention_outputs  = np.concatenate(train_attention_outputs, axis = 0)
+        train_attention_outputs  = attention_map_vis(train_attention_outputs).return_all_attention_maps()
+        train_inputs             = np.concatenate(train_inputs, axis = 0)
+        
+
+        train_date_times   = np.concatenate(train_date_times)
+        train_round_times  = np.concatenate(train_round_times)
+        train_cycletimes   = np.concatenate(train_cycletimes)
+        train_visibilitys  = np.concatenate(train_visibilitys)
+        train_label_trues  = np.concatenate(train_label_trues)
         train_fog_preds    = np.concatenate(train_fog_preds)
         train_nonfog_preds = np.concatenate(train_nonfog_preds)
 
@@ -271,7 +292,7 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             valid_label_trues.append(valid_label_true)
 
             input_val            = sample['input'].to(0)
-            logits, pred_val = model(input_val)
+            valid_attention_scores, pred_val = model(input_val)
             #m = nn.Softmax(dim=1)
             #pred_val = m(logits)
             pred_val = torch.exp(pred_val)
@@ -279,6 +300,23 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             pred_val = pred_val.detach().cpu().numpy()
             valid_fog_preds.append(pred_val[:, 1])
             valid_nonfog_preds.append(pred_val[:, 0])
+
+            # Attention scores: 
+            layer_attention_outputs_v = None
+            for layer_output_v in valid_attention_scores:
+                layer_output_v = np.expand_dims(layer_output_v.detach().cpu().numpy(), axis  = -1)
+                layer_output_v = layer_output_v[:, :, 1:, 1:, :]
+                if layer_attention_outputs_v is None: 
+                    layer_attention_outputs_v = layer_output_v
+                else: 
+                    layer_attention_outputs_v = np.concatenate((layer_attention_outputs_v, layer_output_v), axis = -1)
+
+            valid_attention_outputs.append(layer_attention_outputs_v)   
+            valid_inputs.append(input_val.detach().cpu().numpy()) 
+
+        valid_attention_outputs  = np.concatenate(valid_attention_outputs, axis = 0)
+        valid_attention_outputs = attention_map_vis(valid_attention_outputs).return_all_attention_maps()
+        valid_inputs = np.concatenate(valid_inputs, axis = 0)
 
 
         valid_date_times   = np.concatenate(valid_date_times)
@@ -328,7 +366,7 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             test_label_trues.append(test_label_true)
 
             input_test      = sample['input'].to(0)
-            logits, pred_test = model(input_test)
+            test_attention_scores, pred_test = model(input_test)
             #m = nn.Softmax(dim=1)
             #pred_test = m(logits)
             #_, pred_test, _ = model(input_test)
@@ -336,6 +374,23 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             pred_test = pred_test.detach().cpu().numpy()
             test_fog_preds.append(pred_test[:, 1])
             test_nonfog_preds.append(pred_test[:, 0])
+
+
+            # Attention scores: 
+            layer_attention_outputs_test = None
+            for layer_output_test in test_attention_scores:
+                layer_output_test = np.expand_dims(layer_output_test.detach().cpu().numpy(), axis  = -1)
+                layer_output_test = layer_output_test[:, :, 1:, 1:, :]
+                if layer_attention_outputs_test is None: 
+                    layer_attention_outputs_test = layer_output_test
+                else: 
+                    layer_attention_outputs_test = np.concatenate((layer_attention_outputs_test, layer_output_test), axis = -1)
+
+            test_attention_outputs.append(layer_attention_outputs_test)    
+            test_inputs.append(input_test.detach().cpu().numpy())
+        test_inputs = np.concatenate(test_inputs, axis = 0)
+        test_attention_outputs = np.concatenate(test_attention_outputs, axis = 0)
+        test_attention_outputs = attention_map_vis(test_attention_outputs).return_all_attention_maps()
 
 
         test_date_times   = np.concatenate(test_date_times)
@@ -365,7 +420,7 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
         test_evaluation_metrics = test_eval_obj.confusion_matrix_calc()
         _ = test_eval_obj.ruc_curve_plot()
 
-    return [train_output, valid_output, test_output]
+    return [train_output, valid_output, test_output], [train_inputs, valid_inputs, test_inputs], [train_attention_outputs, valid_attention_outputs, test_attention_outputs]
 
 def train(model, optimizer, loss_func, training_config_dict, data_loader_training, data_loader_validate, Exp_name):
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -389,11 +444,13 @@ def train(model, optimizer, loss_func, training_config_dict, data_loader_trainin
         # TRAINING
         train_epoch_loss = 0
         model.train()
-        print(f"============================================== Epoch")
+
         for batch_idx, sample in enumerate(data_loader_training):
             
-            input_train      = sample['input'].to(device)
-            train_label_true = sample['label_class'].to(device)
+            input_train        = sample['input'].to(0) #.type(torch.LongTensor)
+            train_label_true   = sample['label_class'].to(0)
+
+
             train_out01, train_out = model(input_train)
             optimizer.zero_grad()
 
@@ -413,9 +470,9 @@ def train(model, optimizer, loss_func, training_config_dict, data_loader_trainin
             model.eval()
             for batch, sample in enumerate(data_loader_validate):
                 
-                input_val      = sample['input'].to(device)
-                class_true_val = sample['onehotlabel'].to(0)
-                label_true_val = sample['label_class'].to(device)
+                input_val      = sample['input'].to(0) #.type(torch.LongTensor)
+                #class_true_val = sample['onehotlabel'].to(0)
+                label_true_val = sample['label_class'].to(0)
 
                 pred_val01, pred_val = model(input_val)
             
@@ -467,6 +524,96 @@ def extract_selfattention_maps(transformer_encoder,x, mask, src_key_padding_mask
             # forward of layer i
             x = transformer_encoder.layers[i](x,src_mask=mask,src_key_padding_mask=src_key_padding_mask)
     return attention_maps
+
+
+class attention_map_vis(): 
+    def __init__(self, att_maps):
+        self.att_maps = att_maps
+
+    def return_atten_map(self, maps):
+        heads_layers_output_maps = None
+
+
+        for head in range(maps.shape[0]):
+            layers_output_maps = None
+            for layer in range(maps.shape[3]): 
+                scores = maps[head, :, :, layer]
+
+                scores = np.sum(scores, axis = 1)
+
+                output_map = self.convert_scores_to_maps(scores)
+                output_map = np.expand_dims(output_map, axis = -1)
+
+                if layers_output_maps is None: 
+                    layers_output_maps = output_map
+                else: 
+                    layers_output_maps = np.concatenate((output_map, layers_output_maps), axis = -1) 
+
+            layers_output_maps = np.expand_dims(layers_output_maps, axis = 0)
+
+
+            if heads_layers_output_maps is None: 
+                heads_layers_output_maps = layers_output_maps
+            else: 
+                heads_layers_output_maps = np.concatenate((heads_layers_output_maps, layers_output_maps), axis = 0) 
+
+        return heads_layers_output_maps
+
+    def convert_scores_to_maps(self, scores):
+        out     = np.ones((32, 32),dtype = float)
+        scores  = scores.reshape(4,4) 
+
+        for i in range(4):
+            for j in range(4): 
+                value = scores[i, j]
+                scor_map = np.full(64, value)
+                scor_map = scor_map.reshape(8, 8)
+                out[i*8:(i+1)*8, j*8:(j+1)*8] = scor_map
+        return out
+    
+
+    def return_all_attention_maps(self): 
+        output = None
+        for m in range(self.att_maps.shape[0]):
+            heads_layers_output_maps = self.return_atten_map(self.att_maps[m, :, :, :, :])
+            #print(heads_layers_output_maps.shape)
+            heads_layers_output_maps = np.expand_dims(heads_layers_output_maps, axis = 0)
+            if output is None: 
+                output = heads_layers_output_maps
+            else: 
+                output = np.concatenate((output, heads_layers_output_maps), axis = 0)
+
+        
+        return output
+
+
+
+    
+def attention_map_visualize(df, inputs, attention_maps, variable:int, date:str): 
+
+    idx = df[df['date_cycletime'] == date].index[0]
+    num_heads  = attention_maps.shape[1]
+    num_layers = attention_maps.shape[4]
+
+    fig, axs = plt.subplots(4, 8, figsize = (24, 12))
+
+    img1 = inputs[idx, variable, :, :]
+    for i in range(num_layers):
+        for j in range(num_heads):
+            img2 = attention_maps[idx, j, :, :, i]
+
+            axs[i, j].imshow(img1)
+            axs[i, j].imshow(img2, alpha=0.4)
+    for i in range(num_layers): 
+        axs[i, 0].set_ylabel(r'Layer {0}'.format(i+1))
+    for j in range(num_heads):
+        axs[0, j].set_title(r'Head {0}'.format(j+1))
+
+
+
+    
+    plt.axis('off')
+    plt.show()
 
 
 

@@ -210,7 +210,7 @@ year_information          = {'2009':['20090101', '20091231'],
                             '2017':['20170101', '20171231'],
                             '2018':['20180101', '20181231'],
                             '2019':['20190101', '20191231'],
-                            '2020':['20200101', '20200115']}
+                            '2020':['20200101', '20201231']}
 
 
 data_split_dict_ = {'train': ['2013', '2014', '2015', '2016', '2017'], 
@@ -227,25 +227,25 @@ config_dictionary_1D = dict(random_state=1001,
                             nhead= 8, 
                             dim_feedforward= 512,
                             batch_size= 32,
-                            early_stop_tolerance= 50,
-                            epochs= 200, 
+                            early_stop_tolerance= 10,
+                            epochs= 10, 
                             )
 
 
-get_train_hyperparameter_config = dict(batch_size = 2,
-                                        lr = 1e-4,
+get_train_hyperparameter_config = dict(batch_size = 32,
+                                        lr = 1e-3,
                                         wd = 1e-2,
-                                        early_stop_tolerance = 10,
-                                        epochs = 10)
+                                        early_stop_tolerance = 50,
+                                        epochs = 500)
 
 
 data_config_dict = dict(input_path = DEFAULT_IMAGE_DIR_NAME,
     target_path = DEFAULT_TARGET_DIR_NAME,
-    start_date = year_information['2020'][0],
+    start_date = year_information['2009'][0],
     finish_date = year_information['2020'][1],
-    data_split_dict = {'train': ['2020'], 
-                    'valid': ['2020'], 
-                    'test': ['2020']},
+    data_split_dict = {'train': ['2013', '2014', '2015', '2016', '2017'], 
+                    'valid': ['2009', '2010', '2011'], 
+                    'test': ['2018', '2019', '2020']},
     data_straucture = '2D',
     lead_time_pred = 24,
     vis_threshold = 1,
@@ -257,11 +257,11 @@ data_config_dict = dict(input_path = DEFAULT_IMAGE_DIR_NAME,
 def SparkMET_1D_config():
     """Returns the 1D configuration."""
     config = ml_collections.ConfigDict()
-    config.dim_model = 744
+    config.variable_len = 744
+    config.embed_dim    = 512
     config.transformer = ml_collections.ConfigDict()
-    config.transformer.mlp_dim = 512
     config.transformer.num_heads = 8
-    config.transformer.num_layers = 6
+    config.transformer.num_layers = 4
     config.transformer.dropout_rate = 0.3
     config.transformer.activation = 'relu'
     config.transformer.num_class = 2
@@ -278,7 +278,7 @@ def SparkMET_2D_config():
     config.transformer.mlp_dim = 512
     config.transformer.num_heads = 8
     config.transformer.num_layers = 4
-    config.transformer.attention_dropout_rate = 0.0
+    config.transformer.attention_dropout_rate = 0.3
     config.transformer.dropout_rate = 0.3
     config.classifier = 'token'
     config.representation_size = None
