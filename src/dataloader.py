@@ -162,6 +162,9 @@ class return_train_variable_mean_std():
         self.dataset = dataset
         self.predictor_names = predictor_names 
         self.lead_time_pred = lead_time_pred
+        self.predictor_names.append('analysed_sst')
+        
+
 
     def return_full_timeseries_names(self, netcdf_file_root_name):
 
@@ -189,33 +192,70 @@ class return_train_variable_mean_std():
 
         output_dict = {}
         for name in self.predictor_names: 
-            
+
             list_of_mean = []
+
             for idx in range(len(self.dataset)):
 
                 nc_nam_timeseries_files_path_list = self.dataset.loc[idx]['nam_nc_files_path'] 
                 full_timeseries_names, _ = self.return_full_timeseries_names(nc_nam_timeseries_files_path_list)
 
-                for idx, nc_file_name in enumerate(full_timeseries_names):
+
+                if name == 'analysed_sst': 
+                    netcdf_mur_root_names = self.dataset.loc[idx]['mur_nc_files_path'] 
+                    netcdf_mur_root_names = netcdf_mur_root_names[0:57] + '009_input.nc'
+                    mur_dataset_object = netCDF4.Dataset(netcdf_mur_root_names)
+                    mur_predictor_matrix = np.array(
+                        mur_dataset_object.variables['analysed_sst'][:], dtype = float).flatten()
+                    mur_predictor_matrix[mur_predictor_matrix > 0]
+                    mur_predictor_matrix_mean = np.mean(mur_predictor_matrix)
+
+                    list_of_mean.append(mur_predictor_matrix_mean)
+                else: 
+                    
+                    for i, nc_file_name in enumerate(full_timeseries_names):
             
-                    dataset_object = netCDF4.Dataset(nc_file_name)
+                        dataset_object = netCDF4.Dataset(nc_file_name)
 
-                    this_predictor_matrix = np.array(
-                        dataset_object.variables[name][:], dtype = float)
+                        this_predictor_matrix = np.array(
+                            dataset_object.variables[name][:], dtype = float)
 
+                        this_predictor_leadtime_mean = np.mean(this_predictor_matrix)
 
-                    this_predictor_leadtime_mean = np.mean(this_predictor_matrix)
-
-                    list_of_mean.append(this_predictor_leadtime_mean)
+                        list_of_mean.append(this_predictor_leadtime_mean)
 
             this_predictor_mean = st.mean(list_of_mean)
             this_predictor_std  = st.pstdev(list_of_mean)
 
             output_dict [name] = [this_predictor_mean, this_predictor_std] 
+            
+            
+        '''mur_list_of_mean = []
+        
+        for idx in range(len(self.dataset)):
 
+            netcdf_mur_root_names = self.dataset.loc[idx]['mur_nc_files_path'] 
+            netcdf_mur_root_names = netcdf_mur_root_names[0:57] + '009_input.nc'
+            dataset_object = netCDF4.Dataset(netcdf_mur_root_names)
+
+            this_predictor_matrix = np.array(
+                dataset_object.variables['analysed_sst'][:], dtype = float).flatten()
+            this_predictor_matrix[this_predictor_matrix > 0]
+            this_predictor_leadtime_mean = np.mean(this_predictor_matrix)
+
+            mur_list_of_mean.append(this_predictor_leadtime_mean)
+
+        mur_predictor_mean = st.mean(mur_list_of_mean)
+        mur_predictor_std  = st.pstdev(mur_list_of_mean)
+
+        output_dict ['analysed_sst'] = [mur_predictor_mean, mur_predictor_std] '''
+        
+        
         return output_dict
 
 
+    
+    
 def split_data_train_valid_test(dataset, year_split_dict = None):
 
     train_years = year_split_dict['train']
@@ -243,15 +283,14 @@ class DataAdopter():
                                 predictor_names: list, 
                                 lead_time_pred: int, 
                                 mean_std_dict: dict,
-                                mean_std_mur_dict:dict, 
-                                point_geolocation_dic: list): 
+                                point_geolocation_dic: list):
 
         self.dataframe            = dataframe
         self.map_structure        = map_structure
         self.predictor_names      = predictor_names
         self.lead_time_pred       = lead_time_pred
         self.mean_std_dict        = mean_std_dict 
-        self.mean_std_mur_dict    = mean_std_mur_dict
+
         self.point_geolocation_dic= point_geolocation_dic
 
         #self.dataframe       = self.binarize_onehot_label_df()
@@ -274,12 +313,14 @@ class DataAdopter():
         nc_nam_timeseries_files_path_list = self.dataframe.loc[idx]['nam_nc_files_path']
         nc_mur_timeseries_files_path_list = self.dataframe.loc[idx]['mur_nc_files_path']
         timeseries_nam_predictor_matrix, timeseries_st_predictor_matrix, timeseries_mur_predictor_matrix = self.read_nc_nam_maps(nc_nam_timeseries_files_path_list, 
-                                                                                                                                 nc_mur_timeseries_files_path_list)
+                                                                                                                               nc_mur_timeseries_files_path_list)
+
+        #print(f"NAM: {timeseries_nam_predictor_matrix.shape} | ST: {timeseries_st_predictor_matrix.shape} | MUR:{timeseries_mur_predictor_matrix.shape}")
+
 
         timeseries_predictors_matrix = self.gen_combined_predictor(timeseries_nam_predictor_matrix, 
                                                                    timeseries_st_predictor_matrix, 
-                                                                   timeseries_mur_predictor_matrix)
-        
+                                                                  timeseries_mur_predictor_matrix)
 
         if self.map_structure == '1D': 
             timeseries_nam_predictor_matrix   = timeseries_nam_predictor_matrix.values#.flatten()
@@ -288,10 +329,11 @@ class DataAdopter():
             timeseries_nam_predictor_matrix   = torch.as_tensor(timeseries_nam_predictor_matrix, dtype=torch.float32)
             
         else: 
-            timeseries_nam_predictor_matrix   = timeseries_nam_predictor_matrix[0, :,:, :93]
-            timeseries_nam_predictor_matrix   = torch.as_tensor(timeseries_nam_predictor_matrix, dtype = torch.float32)
-            timeseries_nam_predictor_matrix   = timeseries_nam_predictor_matrix.permute(2, 0, 1)
-        
+            timeseries_predictors_matrix   = timeseries_predictors_matrix[0, :, :, :]
+            timeseries_predictors_matrix   = torch.as_tensor(timeseries_predictors_matrix, dtype = torch.float32)
+
+            timeseries_predictors_matrix   = timeseries_predictors_matrix.permute(2, 0, 1)
+
         #=============================================== reading the target visibility =======================================#
         onehotlabel = self.label_onehot_df.loc[idx]
         onehotlabel = torch.as_tensor(onehotlabel, dtype=torch.long)
@@ -300,7 +342,7 @@ class DataAdopter():
         label = torch.as_tensor(label, dtype=torch.long)#dtype = torch.float32
         #label = torch.unsqueeze(label, dim=0)
         #=============================================== return the sample =======================================#
-        sample = {"input": timeseries_nam_predictor_matrix, 
+        sample = {"input": timeseries_predictors_matrix, 
                                         "onehotlabel":onehotlabel, 
                                         "label_class": label, 
                                         "date_time": date_time, 
@@ -311,30 +353,53 @@ class DataAdopter():
         return sample
         #return  nam_timeseries_predictor_matrix, label
 
-    # Need to be updated ==================================================
+    
     def gen_combined_predictor(self, timeseries_nam_predictor_matrix, 
                                timeseries_st_predictor_matrix, 
                                timeseries_mur_predictor_matrix):
         
+        
+        tem2m_index = 0
+        dpt2m_index = 76
+        t = 93
 
-        upsampled_timeseries_st_predictor_matrix   = scipy.ndimage.zoom(timeseries_st_predictor_matrix, 11.75, order=3)
+        for m in range(timeseries_st_predictor_matrix.shape[-1]): 
+            upsampled_timeseries_st_predictor_matrix   = scipy.ndimage.zoom(timeseries_st_predictor_matrix[0, :, :, m], 11.75, order=3)
+            
 
-        surface_index      = np.where(timeseries_mur_predictor_matrix[0, :, :, 0] == -32768)
-        listOfCoordinates  = list(zip(surface_index[0], surface_index[1]))
-
-        for m in range(upsampled_timeseries_st_predictor_matrix.shape[0]): 
+            surface_index      = np.where(timeseries_mur_predictor_matrix[0, :, :, m] == -32768)
+            
+            listOfCoordinates  = list(zip(surface_index[0], surface_index[1]))
+            
+            
             for l in listOfCoordinates:
-                timeseries_mur_predictor_matrix[m, l(0) , l(1), :] = upsampled_timeseries_st_predictor_matrix[m, l(0) , l(1), :]
 
-            downsampled_timeseries_mur_predictor_matrix = scipy.ndimage.zoom(timeseries_mur_predictor_matrix, 0.0851, order=3)
+                timeseries_mur_predictor_matrix[:, l[0] , l[1], m] = upsampled_timeseries_st_predictor_matrix[l[0] , l[1]]
+            
+            downsampled_timeseries_mur_predictor_matrix = scipy.ndimage.zoom(timeseries_mur_predictor_matrix[0, :, :, m], 0.0851, order=3)
+            
+            mur_predictor_mean  = 297.0
+            mur_predictor_std   = self.mean_std_dict['analysed_sst'][1] 
+            
+            SST = (downsampled_timeseries_mur_predictor_matrix - mur_predictor_mean)/mur_predictor_std
+            NETCDF_TMPDPT      = np.subtract(timeseries_nam_predictor_matrix[0, :, :, tem2m_index], timeseries_nam_predictor_matrix[0, :, :, dpt2m_index])
+            NETCDF_TMPSST      = np.subtract(timeseries_nam_predictor_matrix[0, :, :, tem2m_index], SST)
+            NETCDF_DPTSST      = np.subtract(timeseries_nam_predictor_matrix[0, :, :, dpt2m_index], SST)
+            
+            
 
-            NETCDF_TMPDPT      = np.subtract(up_this_nam_tmp2m , up_this_nam_dpt)
-            NETCDF_TMPSST      = np.subtract(up_this_nam_tmp2m , this_mur_file)
-            NETCDF_DPTSST      = np.subtract(up_this_nam_dpt , this_mur_file)
+            timeseries_nam_predictor_matrix = np.insert(timeseries_nam_predictor_matrix, t, SST, axis = 3)
+            timeseries_nam_predictor_matrix = np.insert(timeseries_nam_predictor_matrix, t+1, NETCDF_TMPDPT, axis = 3)
+            timeseries_nam_predictor_matrix = np.insert(timeseries_nam_predictor_matrix, t+2, NETCDF_TMPSST, axis = 3)
+            timeseries_nam_predictor_matrix = np.insert(timeseries_nam_predictor_matrix, t+3, NETCDF_DPTSST, axis = 3)
+            
+            t += 93
+            tem2m_index += 93
+            dpt2m_index += 93
 
-
-
-        timeseries_nam_predictor_matrix = timeseries_nam_predictor_matrix 
+            
+        
+  
 
         return timeseries_nam_predictor_matrix
 
@@ -369,8 +434,8 @@ class DataAdopter():
             lead_time_steps = ['000', '006', '012', '024']
 
             # Apr 02: adding mur name dara 
-            netcdf_mur_024_names   = netcdf_mur_root_names[0:57] + '009_input.nc'
-            netcdf_mur_names_list = [netcdf_mur_024_names, netcdf_mur_024_names, netcdf_mur_024_names, netcdf_mur_024_names]
+            #netcdf_mur_024_names   = netcdf_mur_root_names[0:57] + '009_input.nc'
+            #netcdf_mur_names_list = [netcdf_mur_024_names, netcdf_mur_024_names, netcdf_mur_024_names, netcdf_mur_024_names]
 
         timeseries_predictor_matrix = None
         timeseries_surfacetemp_matrix = None
@@ -412,12 +477,7 @@ class DataAdopter():
 
             surfacetemp_matrix = np.expand_dims(
                     surfacetemp_matrix, axis=-1)
-                
-            surfacetemp_mean  = self.mean_std_dict['TMP_surface'][0]
-            surfacetemp_std   = self.mean_std_dict['TMP_surface'][1] 
-
-            surfacetemp_matrix = (surfacetemp_matrix - surfacetemp_mean)/surfacetemp_std
-                
+            
             #elif data_type == 'murs':
 
             #    mur_dataset_object = netCDF4.Dataset(nc_file_name)
@@ -479,39 +539,19 @@ class DataAdopter():
         
         # Preparing MUR Dataset: 
 
-        if self.lead_time_pred == 24:
-            # Apr 02: adding mur name dara 
-            netcdf_mur_024_names   = netcdf_mur_root_names[0:57] + '009_input.nc'
-            netcdf_mur_names_list = [netcdf_mur_024_names, netcdf_mur_024_names, netcdf_mur_024_names, netcdf_mur_024_names]
+            if self.lead_time_pred == 24:
+                # Apr 02: adding mur name dara 
+                netcdf_mur_024_names   = netcdf_mur_root_names[0:57] + '009_input.nc'
+                #netcdf_mur_names_list = [netcdf_mur_024_names, netcdf_mur_024_names, netcdf_mur_024_names, netcdf_mur_024_names]
 
+            mur_dataset_object = netCDF4.Dataset(netcdf_mur_024_names)
+            mur_predictor_matrix = np.array(
+                mur_dataset_object.variables['analysed_sst'][:], dtype=float
+            )
 
-        for idx, mur_file_name in enumerate(netcdf_mur_names_list):
+            mur_predictor_matrix = np.expand_dims(
+                mur_predictor_matrix, axis=-1)
 
-            #if data_type == 'maps': 
-            mur_dataset_object = netCDF4.Dataset(mur_file_name)
-
-            mur_predictor_matrix = None
-            
-            for mur_predictor_name in NETCDF_PREDICTOR_NAMES:
-                
-                this_mur_predictor_matrix = np.array(
-                    mur_dataset_object.variables[mur_predictor_name][:], dtype=float
-                )
-
-                this_mur_predictor_matrix = np.expand_dims(
-                    this_mur_predictor_matrix, axis=-1)
-                
-                mur_predictor_mean  = self.mean_std_mur_dict[mur_predictor_name][0]
-                mur_predictor_std   = self.mean_std_mur_dict[mur_predictor_name][1] 
-
-                this_mur_predictor_matrix = (this_mur_predictor_matrix - mur_predictor_mean)/mur_predictor_std
-
-                if mur_predictor_matrix is None:
-                    mur_predictor_matrix = this_mur_predictor_matrix + 0.
-                else:
-                    mur_predictor_matrix = np.concatenate(
-                        (mur_predictor_matrix, this_mur_predictor_matrix), axis=-1
-                    )
 
 
             if self.map_structure == '3D':
@@ -523,7 +563,7 @@ class DataAdopter():
                     timeseries_mur_matrix = np.concatenate(
                         (timeseries_mur_matrix, mur_predictor_matrix), axis=-1
                     )
-
+        
 
         return timeseries_predictor_matrix, timeseries_surfacetemp_matrix, timeseries_mur_matrix
 

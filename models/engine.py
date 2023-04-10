@@ -12,7 +12,9 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time 
-
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+import matplotlib.patches as patches
+from matplotlib.patches import Circle
 
 
 
@@ -240,7 +242,7 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
 
 
         train_attention_outputs  = np.concatenate(train_attention_outputs, axis = 0)
-        train_attention_outputs  = attention_map_vis(train_attention_outputs).return_all_attention_maps()
+        train_attention_output_maps, train_attention_output_scores  = attention_map_vis(train_attention_outputs).return_all_attention_maps()
         train_inputs             = np.concatenate(train_inputs, axis = 0)
         
 
@@ -315,7 +317,7 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             valid_inputs.append(input_val.detach().cpu().numpy()) 
 
         valid_attention_outputs  = np.concatenate(valid_attention_outputs, axis = 0)
-        valid_attention_outputs = attention_map_vis(valid_attention_outputs).return_all_attention_maps()
+        valid_attention_output_maps, valid_attention_output_scores = attention_map_vis(valid_attention_outputs).return_all_attention_maps()
         valid_inputs = np.concatenate(valid_inputs, axis = 0)
 
 
@@ -390,7 +392,7 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             test_inputs.append(input_test.detach().cpu().numpy())
         test_inputs = np.concatenate(test_inputs, axis = 0)
         test_attention_outputs = np.concatenate(test_attention_outputs, axis = 0)
-        test_attention_outputs = attention_map_vis(test_attention_outputs).return_all_attention_maps()
+        test_attention_output_maps, test_attention_output_scores = attention_map_vis(test_attention_outputs).return_all_attention_maps()
 
 
         test_date_times   = np.concatenate(test_date_times)
@@ -420,7 +422,12 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
         test_evaluation_metrics = test_eval_obj.confusion_matrix_calc()
         _ = test_eval_obj.ruc_curve_plot()
 
-    return [train_output, valid_output, test_output], [train_inputs, valid_inputs, test_inputs], [train_attention_outputs, valid_attention_outputs, test_attention_outputs]
+    predictions = [train_output, valid_output, test_output]
+    inputs      = [train_inputs, valid_inputs, test_inputs]
+    att_maps    = [train_attention_output_maps, valid_attention_output_maps, test_attention_output_maps]
+    att_scores  = [train_attention_output_scores, valid_attention_output_scores, test_attention_output_scores]
+
+    return predictions, inputs, att_maps, att_scores
 
 def train(model, optimizer, loss_func, training_config_dict, data_loader_training, data_loader_validate, Exp_name):
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -438,8 +445,9 @@ def train(model, optimizer, loss_func, training_config_dict, data_loader_trainin
     #==============================================================================================================#
     #==============================================================================================================#
     epochs = training_config_dict['epochs']
+    
     for epoch in range(1, epochs+1):
-
+        
         training_start_time = time.time()
         # TRAINING
         train_epoch_loss = 0
@@ -453,16 +461,15 @@ def train(model, optimizer, loss_func, training_config_dict, data_loader_trainin
 
             train_out01, train_out = model(input_train)
             optimizer.zero_grad()
-
+            
             train_loss  = loss_func(train_out, train_label_true) #
+            
             train_loss.backward()
             optimizer.step()
             step += 1
 
             train_epoch_loss += train_loss.item()
 
-        # scheduler.step(_)
-        # VALIDATION    
         with torch.no_grad():
             
             val_epoch_loss = 0
@@ -478,7 +485,7 @@ def train(model, optimizer, loss_func, training_config_dict, data_loader_trainin
             
                 val_loss       = loss_func(pred_val, label_true_val)
                 val_epoch_loss += val_loss.item()
-
+        
                 
         training_duration_time = (time.time() - training_start_time)
 
@@ -530,6 +537,39 @@ class attention_map_vis():
     def __init__(self, att_maps):
         self.att_maps = att_maps
 
+    def return_atten_guass(self, maps):
+        heads_layers_output_scores= None
+
+
+        for head in range(maps.shape[0]):
+            layers_output_scores = None
+            for layer in range(maps.shape[3]): 
+                scores = maps[head, :, 5, layer]
+
+                
+                max_idx    = np.argmax(scores)
+                max_scores = np.max(scores) 
+                max_50th   = np.percentile(scores, 50)
+                max_90th   = np.percentile(scores, 90)
+
+                output_map = np.array((max_idx, max_scores, max_50th, max_90th))
+                output_map = np.expand_dims(output_map, axis = -1)
+
+                if layers_output_scores is None: 
+                    layers_output_scores = output_map
+                else: 
+                    layers_output_scores = np.concatenate((layers_output_scores, output_map), axis = -1) 
+
+            layers_output_scores = np.expand_dims(layers_output_scores, axis = 0)
+
+
+            if heads_layers_output_scores is None: 
+                heads_layers_output_scores = layers_output_scores
+            else: 
+                heads_layers_output_scores = np.concatenate((heads_layers_output_scores, layers_output_scores), axis = 0) 
+
+        return heads_layers_output_scores
+    
     def return_atten_map(self, maps):
         heads_layers_output_maps = None
 
@@ -539,7 +579,7 @@ class attention_map_vis():
             for layer in range(maps.shape[3]): 
                 scores = maps[head, :, :, layer]
 
-                scores = np.sum(scores, axis = 1)
+                scores = np.mean(scores, axis = 1)
 
                 output_map = self.convert_scores_to_maps(scores)
                 output_map = np.expand_dims(output_map, axis = -1)
@@ -559,6 +599,7 @@ class attention_map_vis():
 
         return heads_layers_output_maps
 
+
     def convert_scores_to_maps(self, scores):
         out     = np.ones((32, 32),dtype = float)
         scores  = scores.reshape(4,4) 
@@ -569,22 +610,31 @@ class attention_map_vis():
                 scor_map = np.full(64, value)
                 scor_map = scor_map.reshape(8, 8)
                 out[i*8:(i+1)*8, j*8:(j+1)*8] = scor_map
+
+
         return out
     
 
     def return_all_attention_maps(self): 
-        output = None
+        output_maps, output_scores  = None, None
         for m in range(self.att_maps.shape[0]):
-            heads_layers_output_maps = self.return_atten_map(self.att_maps[m, :, :, :, :])
-            #print(heads_layers_output_maps.shape)
-            heads_layers_output_maps = np.expand_dims(heads_layers_output_maps, axis = 0)
-            if output is None: 
-                output = heads_layers_output_maps
-            else: 
-                output = np.concatenate((output, heads_layers_output_maps), axis = 0)
 
-        
-        return output
+            heads_layers_output_maps = self.return_atten_map(self.att_maps[m, :, :, :, :])
+            heads_layers_output_maps = np.expand_dims(heads_layers_output_maps, axis = 0)
+            if output_maps is None: 
+                output_maps = heads_layers_output_maps
+            else: 
+                output_maps = np.concatenate((output_maps, heads_layers_output_maps), axis = 0)
+
+            heads_layers_output_scores = self.return_atten_guass(self.att_maps[m, :, :, :, :])
+            heads_layers_output_scores = np.expand_dims(heads_layers_output_scores, axis = 0)
+            if output_scores is None: 
+                output_scores = heads_layers_output_scores
+            else: 
+                output_scores = np.concatenate((output_scores, heads_layers_output_scores), axis = 0)
+
+
+        return output_maps, output_scores
 
 
 
@@ -597,25 +647,107 @@ def attention_map_visualize(df, inputs, attention_maps, variable:int, date:str):
 
     fig, axs = plt.subplots(4, 8, figsize = (24, 12))
 
-    img1 = inputs[idx, variable, :, :]
+    img1 = inputs[idx, variable, ::-1, :]
+    min_ = np.min(attention_maps[idx, :, :, :, :])
+
     for i in range(num_layers):
         for j in range(num_heads):
-            img2 = attention_maps[idx, j, :, :, i]
+            img2 = attention_maps[idx, j, ::-1, :, i]
+            vis1 = axs[i, j].imshow(img1, cmap = 'gray')
+            vis2 = axs[i, j].imshow(img2, alpha=0.4)
+            
+            vis2.set_clim(0.0589, 0.062)
 
-            axs[i, j].imshow(img1)
-            axs[i, j].imshow(img2, alpha=0.4)
+            if j == num_heads -1: 
+                divider = make_axes_locatable(axs[i, j])
+                cax = divider.append_axes("right", size="5%", pad=0.1)
+                cbar1 = fig.colorbar(vis2, cax=cax)
+            axs[i, j].set_xticks([])
+            axs[i, j].set_yticks([])
+
     for i in range(num_layers): 
         axs[i, 0].set_ylabel(r'Layer {0}'.format(i+1))
     for j in range(num_heads):
         axs[0, j].set_title(r'Head {0}'.format(j+1))
 
-
-
     
-    plt.axis('off')
     plt.show()
 
 
 
 
 
+def attention_map_guassian_visualize(df, inputs, attention_scores, variable:int, date:str): 
+
+    idx = df[df['date_cycletime'] == date].index[0]
+    num_heads  = attention_scores.shape[1]
+    num_layers = attention_scores.shape[3]
+
+    fig, axs = plt.subplots(1, num_layers, figsize = (24, 6))
+
+    img1 = inputs[idx, variable, ::-1, :]
+    # Create a Rectangle patch
+    
+    colors = ['c', 'm', 'y', 'k', 'r', 'b', 'g', 'brown']
+    for i in range(num_layers):
+        vis1 = axs[i].imshow(img1, cmap = 'gray',alpha=0.4)
+        rect = patches.Rectangle((7, 7), 2, 2, linewidth=1, edgecolor='r', facecolor = 'r')
+        # Add the patch to the Axes
+        axs[i].add_patch(rect)
+        for v in range(num_heads): 
+            list_ = attention_scores[idx, v, :, i]
+
+
+
+            pixel_idx = list_[0]
+            #print(f"Layer: {i}| Head: {v} = {pixel_idx}")
+ 
+            if pixel_idx == 0: 
+                coordinates = (4, 4)
+            elif pixel_idx == 1: 
+                coordinates = (14, 6)
+            elif pixel_idx == 2: 
+                coordinates = (22, 6)
+            elif pixel_idx == 3: 
+                coordinates = (30, 6)
+            elif pixel_idx == 4: 
+                coordinates = (6, 14)
+            elif pixel_idx == 5: 
+                coordinates = (14, 14)
+            elif pixel_idx == 6: 
+                coordinates = (22, 14)
+            elif pixel_idx == 7: 
+                coordinates = (30, 14)
+            elif pixel_idx == 8: 
+                coordinates = (6, 22)
+            elif pixel_idx == 9: 
+                coordinates = (14, 22)
+            elif pixel_idx == 10: 
+                coordinates = (22, 22)
+            elif pixel_idx == 11: 
+                coordinates = (30, 22)
+            elif pixel_idx == 12: 
+                coordinates = (6, 30)
+            elif pixel_idx == 13: 
+                coordinates = (14, 30)
+            elif pixel_idx == 14: 
+                coordinates = (22, 30)
+            elif pixel_idx == 15: 
+                coordinates = (30, 30)
+
+            Perc50 = list_[2]
+            Perc90 = list_[3]
+
+
+            circ50 = Circle(coordinates, radius= Perc50*10, color = colors[v], fill = False, linewidth = 2)
+            axs[i].add_patch(circ50)
+            circ90 = Circle(coordinates, radius= Perc90*30, color = colors[v],fill = False, linestyle = '--', linewidth = 2)
+            axs[i].add_patch(circ90)
+
+        axs[i].set_xticks([])
+        axs[i].set_yticks([])
+
+    for l in range(num_layers): 
+        axs[l].set_title(r'Layer {0}'.format(l+1))
+
+    plt.show()

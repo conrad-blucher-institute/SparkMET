@@ -15,13 +15,13 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Check if there is GPU(s): {torch.cuda.is_available()}")
 
 
-Exp_name  = 'H1'
+Exp_name  = 'test'
 data_loader_training, data_loader_validate, data_loader_testing = dataloader.return_data_loaders(configs.data_config_dict, 
                                                                                                  configs.get_train_hyperparameter_config, 
                                                                                                  Exp_name)
 
 #model = transformers.Transformer1d(configs.SparkMET_1D_config()).to(device)
-model = transformers.VisionTransformer(configs.SparkMET_2D_config(), img_size=32, num_classes=2,).to(device)
+model = transformers.VisionTransformer(configs.SparkMET_3D_config(), img_size=32, num_classes=2,).to(device)
 
 
 loss_func = torch.nn.NLLLoss() 
