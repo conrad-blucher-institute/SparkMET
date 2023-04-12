@@ -233,10 +233,10 @@ config_dictionary_1D = dict(random_state=1001,
 
 
 get_train_hyperparameter_config = dict(batch_size = 32,
-                                        lr = 0.001,
-                                        wd = 0.005,
+                                        lr = 0.0001,
+                                        wd = 0.05,
                                         early_stop_tolerance = 20,
-                                        epochs = 500)
+                                        epochs = 50)
 
 
 data_config_dict = dict(input_path = DEFAULT_IMAGE_DIR_NAME,
@@ -289,7 +289,7 @@ def SparkMET_3D_config():
     """Returns the ViT configuration."""
     config = ml_collections.ConfigDict()
     config.patches = ml_collections.ConfigDict({'size': (8, 8)})
-    config.hidden_size = 1024
+    config.embd_size = 1024
     config.in_channels = 388
     config.transformer = ml_collections.ConfigDict()
     config.transformer.mlp_dim = 512
@@ -305,7 +305,8 @@ def SparkMET_4D_config():
     """Returns the ViT configuration."""
     config = ml_collections.ConfigDict()
     config.patches = ml_collections.ConfigDict({'size': (8, 8)})
-    config.hidden_size = 58125
+    config.embd_size = 58125
+    config.in_channels = 388
     config.transformer = ml_collections.ConfigDict()
     config.transformer.mlp_dim = 512
     config.transformer.num_heads = 8
@@ -318,6 +319,20 @@ def SparkMET_4D_config():
 
                                
                 
-                
+def SparkMET_4D_config_v2():
+    """Returns the ViT configuration."""
+    config = ml_collections.ConfigDict()
+    config.patches = ml_collections.ConfigDict({'size': (32, 32)})
+    config.embd_size = 1024
+    config.in_channels = 1
+    config.transformer = ml_collections.ConfigDict()
+    config.transformer.mlp_dim = 512
+    config.transformer.num_heads = 8
+    config.transformer.num_layers = 6
+    config.transformer.attention_dropout_rate = 0.3
+    config.transformer.dropout_rate = 0.3
+    config.classifier = 'token'
+    config.representation_size = None
+    return config                
                 
                 

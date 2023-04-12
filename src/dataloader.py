@@ -1,26 +1,19 @@
-import copy
+import os.path
+import torch 
 import time
-import calendar
 import netCDF4
 import json
 import numpy as np
 import statistics as st 
-from numpy import savez_compressed
-from numpy import load
 import scipy.ndimage
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import seaborn as sns
-import os.path
-import itertools
 import pandas as pd
 plt.rcParams.update({'axes.titlesize': 14})
 plt.rc('xtick', labelsize=12)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=12)    # fontsize of the tick labels
 plt.rc('axes', labelsize=14)     # fontsize of the x and y labels 
 
-import torch 
-import torch.nn as nn
+
 from models import engine, configs 
 
 
@@ -331,7 +324,6 @@ class DataAdopter():
         else: 
             timeseries_predictors_matrix   = timeseries_predictors_matrix[0, :, :, :]
             timeseries_predictors_matrix   = torch.as_tensor(timeseries_predictors_matrix, dtype = torch.float32)
-
             timeseries_predictors_matrix   = timeseries_predictors_matrix.permute(2, 0, 1)
 
         #=============================================== reading the target visibility =======================================#
@@ -358,14 +350,13 @@ class DataAdopter():
                                timeseries_st_predictor_matrix, 
                                timeseries_mur_predictor_matrix):
         
-        
+
         tem2m_index = 0
         dpt2m_index = 76
         t = 93
 
         for m in range(timeseries_st_predictor_matrix.shape[-1]): 
             upsampled_timeseries_st_predictor_matrix   = scipy.ndimage.zoom(timeseries_st_predictor_matrix[0, :, :, m], 11.75, order=3)
-            
 
             surface_index      = np.where(timeseries_mur_predictor_matrix[0, :, :, m] == -32768)
             
@@ -386,8 +377,6 @@ class DataAdopter():
             NETCDF_TMPSST      = np.subtract(timeseries_nam_predictor_matrix[0, :, :, tem2m_index], SST)
             NETCDF_DPTSST      = np.subtract(timeseries_nam_predictor_matrix[0, :, :, dpt2m_index], SST)
             
-            
-
             timeseries_nam_predictor_matrix = np.insert(timeseries_nam_predictor_matrix, t, SST, axis = 3)
             timeseries_nam_predictor_matrix = np.insert(timeseries_nam_predictor_matrix, t+1, NETCDF_TMPDPT, axis = 3)
             timeseries_nam_predictor_matrix = np.insert(timeseries_nam_predictor_matrix, t+2, NETCDF_TMPSST, axis = 3)
@@ -403,13 +392,10 @@ class DataAdopter():
 
         return timeseries_nam_predictor_matrix
 
-
-
-
-
     def read_nc_nam_maps(self, netcdf_file_root_names, netcdf_mur_root_names): #
-
-        NETCDF_PREDICTOR_NAMES = self.predictor_names
+        # since I have added SST to the list through normalization I have to remove it here: 
+        #self.predictor_names.remove('analysed_sst')
+        predictor_names_updated = self.predictor_names
 
         if self.lead_time_pred == 6:
 
@@ -433,29 +419,21 @@ class DataAdopter():
             netcdf_file_names_list = [netcdf_file_root_names, netcdf_file_006_names, netcdf_file_012_names, netcdf_file_024_names]
             lead_time_steps = ['000', '006', '012', '024']
 
-            # Apr 02: adding mur name dara 
-            #netcdf_mur_024_names   = netcdf_mur_root_names[0:57] + '009_input.nc'
-            #netcdf_mur_names_list = [netcdf_mur_024_names, netcdf_mur_024_names, netcdf_mur_024_names, netcdf_mur_024_names]
-
         timeseries_predictor_matrix = None
         timeseries_surfacetemp_matrix = None
         timeseries_mur_matrix = None
 
         for idx, nc_file_name in enumerate(netcdf_file_names_list):
-            #data_type = netcdf_file_names_list[:4]
 
-            #if data_type == 'maps': 
             dataset_object = netCDF4.Dataset(nc_file_name)
 
             nam_predictor_matrix = None
             
-            for this_predictor_name in NETCDF_PREDICTOR_NAMES:
-                
-                
+            for this_predictor_name in predictor_names_updated:
+
                 this_predictor_matrix = np.array(
                     dataset_object.variables[this_predictor_name][:], dtype=float
                 )
-
                 this_predictor_matrix = np.expand_dims(
                     this_predictor_matrix, axis=-1)
                 
@@ -478,12 +456,6 @@ class DataAdopter():
             surfacetemp_matrix = np.expand_dims(
                     surfacetemp_matrix, axis=-1)
             
-            #elif data_type == 'murs':
-
-            #    mur_dataset_object = netCDF4.Dataset(nc_file_name)
-            #    mur_predictor_matrix = np.array(
-            #               mur_dataset_object.variables['analysed_sst'][:], dtype=float
-            #           )
 
             if self.map_structure == '1D':
 
@@ -506,7 +478,6 @@ class DataAdopter():
                     timeseries_predictor_matrix = np.concatenate(
                         (timeseries_predictor_matrix, nam_predictor_matrix), axis=-1
                     )
-
 
 
             elif self.map_structure == '3D':
@@ -539,11 +510,7 @@ class DataAdopter():
         
         # Preparing MUR Dataset: 
 
-            if self.lead_time_pred == 24:
-                # Apr 02: adding mur name dara 
-                netcdf_mur_024_names   = netcdf_mur_root_names[0:57] + '009_input.nc'
-                #netcdf_mur_names_list = [netcdf_mur_024_names, netcdf_mur_024_names, netcdf_mur_024_names, netcdf_mur_024_names]
-
+            netcdf_mur_024_names   = netcdf_mur_root_names[0:57] + '009_input.nc'
             mur_dataset_object = netCDF4.Dataset(netcdf_mur_024_names)
             mur_predictor_matrix = np.array(
                 mur_dataset_object.variables['analysed_sst'][:], dtype=float
@@ -551,8 +518,6 @@ class DataAdopter():
 
             mur_predictor_matrix = np.expand_dims(
                 mur_predictor_matrix, axis=-1)
-
-
 
             if self.map_structure == '3D':
 
@@ -590,11 +555,6 @@ class DataAdopter():
 
         return output 
         
-        
-
-            
-
-
 
 #===========
 def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
