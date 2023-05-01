@@ -219,7 +219,7 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
 
             input_train      = sample['input'].to(0)
 
-            train_attention_maps, train_attention_scores, train_out = model(input_train)
+            train_attention_scores, train_out = model(input_train)
             #train_attention_scores, train_out = model(input_train)
 
             #============================================================================================
@@ -300,7 +300,7 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             valid_label_trues.append(valid_label_true)
 
             input_val            = sample['input'].to(0)
-            valid_attention_maps, valid_attention_scores, pred_val = model(input_val)
+            valid_attention_scores, pred_val = model(input_val)
             #valid_attention_scores, pred_val = model(input_val)
             #m = nn.Softmax(dim=1)
             #pred_val = m(logits)
@@ -379,7 +379,7 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             test_label_trues.append(test_label_true)
 
             input_test      = sample['input'].to(0)
-            test_attention_maps, test_attention_scores, pred_test = model(input_test)
+            test_attention_scores, pred_test = model(input_test)
             #test_attention_scores, pred_test = model(input_test)
 
             pred_test = torch.exp(pred_test)
@@ -465,12 +465,12 @@ def train(model, optimizer, loss_func, training_config_dict, data_loader_trainin
         model.train()
 
         for batch_idx, sample in enumerate(data_loader_training):
-            
-            input_train        = sample['input'].to(0) #.type(torch.LongTensor)
-            train_label_true   = sample['label_class'].to(0)
+
+            input_train        = sample['input'].to(device) #.type(torch.LongTensor)
+            train_label_true   = sample['label_class'].to(device)
 
 
-            train_attaention_maps, train_attention_scores, train_out = model(input_train)
+            train_attention_scores, train_out = model(input_train)
             optimizer.zero_grad()
             
             train_loss  = loss_func(train_out, train_label_true) #
@@ -488,11 +488,10 @@ def train(model, optimizer, loss_func, training_config_dict, data_loader_trainin
             model.eval()
             for batch, sample in enumerate(data_loader_validate):
                 
-                input_val      = sample['input'].to(0) #.type(torch.LongTensor)
-                #class_true_val = sample['onehotlabel'].to(0)
-                label_true_val = sample['label_class'].to(0)
+                input_val      = sample['input'].to(device) #.type(torch.LongTensor)
+                label_true_val = sample['label_class'].to(device)
 
-                _, _, pred_val = model(input_val)
+                valid_attention_scores, pred_val = model(input_val)
             
                 val_loss       = loss_func(pred_val, label_true_val)
                 val_epoch_loss += val_loss.item()

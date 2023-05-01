@@ -23,9 +23,10 @@ from torch import Tensor
 
 from models import configs
 
+def swish(x):
+    return x * torch.sigmoid(x)
 
-
-ACT2FN = {"gelu": torch.nn.functional.gelu, "relu": torch.nn.functional.relu}
+ACT2FN = {"gelu": torch.nn.functional.gelu, "relu": torch.nn.functional.relu, "swish": swish}
 
 class Embeddings_2D_Patch(nn.Module):
     """Construct the embeddings from patch, position embeddings.
@@ -64,7 +65,6 @@ class Embeddings_2D_Patch(nn.Module):
         embeddings = self.dropout(embeddings)
 
         return embeddings
-
 
 class Spatial_Embeddings_2D_Patch(nn.Module):
     """Construct the embeddings from patch, position embeddings.

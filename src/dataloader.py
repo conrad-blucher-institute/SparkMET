@@ -541,6 +541,27 @@ class DataAdopter():
 
         return output 
         
+def cost_sensitive_weight_sampler(df):
+    class_counts = df.vis_class.value_counts()
+    class_weights = 1/class_counts
+    sample_weights = [1/class_counts[i] for i in df.vis_class.values]
+    return sample_weights
+
+
+def return_weight_sampler(train, val, test): 
+
+    train_weights = cost_sensitive_weight_sampler(train)
+    train_sampler = torch.utils.data.sampler.WeightedRandomSampler(train_weights, 
+                                                                len(train_weights), replacement=True)    
+    valid_weights = cost_sensitive_weight_sampler(val)
+    val_sampler   = torch.utils.data.sampler.WeightedRandomSampler(valid_weights, 
+                                                                len(valid_weights), replacement=True)    
+    
+    test_weights  = cost_sensitive_weight_sampler(test)
+    test_sampler = torch.utils.data.sampler.WeightedRandomSampler(test_weights, len(test_weights))
+
+    return train_sampler, val_sampler, test_sampler
+
 
 #===========
 def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
@@ -594,7 +615,7 @@ def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
         with open(dict_name, 'r') as file:
             norm_mean_std_dict = json.load(file)
 
-                                                                                                                                                                                                                                       
+
     train_dataset = DataAdopter(train_df, 
                                 map_structure         = data_config_dict['data_straucture'], 
                                 predictor_names       = data_config_dict['predictor_names'], 
@@ -617,12 +638,15 @@ def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
                                 point_geolocation_dic = data_config_dict['points_coords'])
 
 
+
+    train_sampler, valid_sampler, test_sampler = return_weight_sampler(train_df, valid_df, test_df)
+
     data_loader_training = torch.utils.data.DataLoader(train_dataset, batch_size= training_config_dict['batch_size'], 
-                                                    shuffle=True,  num_workers=8) 
+                                                    shuffle=False, sampler=train_sampler, num_workers=8) #sampler=train_sampler,
     data_loader_validate = torch.utils.data.DataLoader(valid_dataset, batch_size= training_config_dict['batch_size'], 
-                                                    shuffle=False,  num_workers=8)
+                                                    shuffle=False, num_workers=8) #sampler=valid_sampler,
     data_loader_testing  = torch.utils.data.DataLoader(test_dataset, batch_size= training_config_dict['batch_size'], 
-                                                    shuffle=False,  num_workers=8)
+                                                    shuffle=False,  num_workers=8) #sampler=test_sampler, 
     
 
     return data_loader_training, data_loader_validate, data_loader_testing

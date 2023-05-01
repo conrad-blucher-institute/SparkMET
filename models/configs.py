@@ -210,7 +210,7 @@ year_information          = {'2009':['20090101', '20091231'],
                             '2017':['20170101', '20171231'],
                             '2018':['20180101', '20181231'],
                             '2019':['20190101', '20191231'],
-                            '2020':['20200101', '20200115']}
+                            '2020':['20200101', '20201231']}
 
 
 data_split_dict_ = {'train': ['2013', '2014', '2015', '2016', '2017'], 
@@ -234,18 +234,18 @@ config_dictionary_1D = dict(random_state=1001,
 
 get_train_hyperparameter_config = dict(batch_size = 32,
                                         lr = 0.0001,
-                                        wd = 0.05,
+                                        wd = 0.01,
                                         early_stop_tolerance = 20,
                                         epochs = 50)
 
 
 data_config_dict = dict(input_path = DEFAULT_IMAGE_DIR_NAME,
     target_path = DEFAULT_TARGET_DIR_NAME,
-    start_date = year_information['2020'][0],
+    start_date = year_information['2009'][0],
     finish_date = year_information['2020'][1],
-    data_split_dict = {'train': ['2020'], 
-                    'valid': ['2020'], 
-                    'test': ['2020']},
+    data_split_dict = {'train': ['2013', '2014', '2015', '2016', '2017'], 
+                    'valid': ['2009', '2010', '2011'], 
+                    'test': ['2018', '2019', '2020']},
     data_straucture = '4D',
     lead_time_pred = 24,
     vis_threshold = 1,
@@ -317,7 +317,6 @@ def SparkMET_4D_config():
     config.representation_size = None
     return config
 
-                               
                 
 def SparkMET_4D_config_v2():
     """Returns the ViT configuration."""
