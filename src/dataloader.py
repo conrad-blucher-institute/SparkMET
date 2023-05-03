@@ -642,11 +642,11 @@ def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
     train_sampler, valid_sampler, test_sampler = return_weight_sampler(train_df, valid_df, test_df)
 
     data_loader_training = torch.utils.data.DataLoader(train_dataset, batch_size= training_config_dict['batch_size'], 
-                                                    shuffle=False, sampler=train_sampler, num_workers=8) #sampler=train_sampler,
+                                                    shuffle = True,  num_workers=0)  # sampler=train_sampler,
     data_loader_validate = torch.utils.data.DataLoader(valid_dataset, batch_size= training_config_dict['batch_size'], 
-                                                    shuffle=False, num_workers=8) #sampler=valid_sampler,
+                                                    shuffle = False, num_workers=0)  # sampler=valid_sampler,
     data_loader_testing  = torch.utils.data.DataLoader(test_dataset, batch_size= training_config_dict['batch_size'], 
-                                                    shuffle=False,  num_workers=8) #sampler=test_sampler, 
+                                                    shuffle = False,  num_workers=0) # sampler=test_sampler, 
     
 
     return data_loader_training, data_loader_validate, data_loader_testing

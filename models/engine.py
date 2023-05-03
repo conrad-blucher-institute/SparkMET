@@ -108,7 +108,14 @@ class Evaluation():
 
         output = [Hit, miss, FA, CR, POD, F, FAR, CSI, PSS, HSS, ORSS, CSS]
 
-        with open(self.report_file_name, "a") as f:
+        with open(self.report_file_name, "a") as f: 
+            # for m in output:
+            #     name = str(m) 
+            #output= [
+                #'output = ['CSS', 'PSS' …]
+                #for m in output:
+                #print f'm: {eval{m)}', 
+            #     print(f"{name}: {m}", file=f)
             print(f"Hit: {Hit}", file=f)
             print(f"Miss: {miss}", file=f)
             print(f"FA: {FA}", file=f)
@@ -123,7 +130,6 @@ class Evaluation():
             print(f"CSS: {CSS}", file=f)
             #print(f"SEDI: {SEDI}", file=f)
 
-    
         return output
         
     def ruc_curve_plot(self): 

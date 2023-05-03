@@ -150,7 +150,8 @@ class Embeddings_2D_SpatioTemporal_Patch(nn.Module):
         self.dropout             = Dropout(config.transformer["dropout_rate"])
 
     def forward(self, x):
-
+        x = x.permute(0, 4, 2, 3, 1)
+    
         B = x.shape[0]
         T = x.shape[-1]
         C = x.shape[1] 
@@ -369,6 +370,7 @@ class VisionTransformer(nn.Module):
         self.softmax     = nn.LogSoftmax(dim=1)
 
     def forward(self, x):
+
         x, attn_weights = self.transformer(x)
         logits = self.head(x[:, 0])
         pred   = self.softmax(logits)
