@@ -148,7 +148,6 @@ class input_dataframe_generater():
         return target
 
 
-
 class return_train_variable_mean_std():
 
     def __init__(self, dataset, predictor_names = None, lead_time_pred = None):
@@ -245,7 +244,6 @@ class return_train_variable_mean_std():
         
         return output_dict
 
-
     
 def split_data_train_valid_test(dataset, year_split_dict = None):
 
@@ -265,7 +263,6 @@ def split_data_train_valid_test(dataset, year_split_dict = None):
 
 
     return [train_df, valid_df, test_df]
-
 
 
 class DataAdopter(): 
@@ -562,7 +559,6 @@ def return_weight_sampler(train, val, test):
 
     return train_sampler, val_sampler, test_sampler
 
-
 #===========
 def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
 
@@ -651,6 +647,3 @@ def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
 
     return data_loader_training, data_loader_validate, data_loader_testing
         
-
-
-
