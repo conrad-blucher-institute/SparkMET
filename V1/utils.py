@@ -1622,9 +1622,6 @@ def concat_cat_npz_cube_files(nam_G1_names, nam_G2_names, nam_G3_names,nam_G4_na
 
         #print('the shape should change and shuffle: ', this_nam_cube_G3.shape)
 
-
-
-
         nam_name_G4 = root + nam_G4_names[i]
         load_nam_cube_G4 = load_cube(nam_name_G4)
         this_nam_cube_G4= numpy.float32(load_nam_cube_G4)

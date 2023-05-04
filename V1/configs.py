@@ -210,7 +210,7 @@ year_information          = {'2009':['20090101', '20091231'],
                             '2017':['20170101', '20171231'],
                             '2018':['20180101', '20181231'],
                             '2019':['20190101', '20191231'],
-                            '2020':['20200101', '20201231']}
+                            '2020':['20200101', '20200115']}
 
 
 data_split_dict_ = {'train': ['2013', '2014', '2015', '2016', '2017'], 
@@ -241,11 +241,11 @@ get_train_hyperparameter_config = dict(batch_size = 32,
 
 data_config_dict = dict(input_path = DEFAULT_IMAGE_DIR_NAME,
     target_path = DEFAULT_TARGET_DIR_NAME,
-    start_date = year_information['2009'][0],
+    start_date = year_information['2020'][0],
     finish_date = year_information['2020'][1],
-    data_split_dict = {'train': ['2013', '2014', '2015', '2016', '2017'], 
-                    'valid': ['2009', '2010', '2011'], 
-                    'test': ['2018', '2019', '2020']},
+    data_split_dict = {'train': ['2020'], 
+                    'valid': ['2020'], 
+                    'test': ['2020']},
     data_straucture = '4D',
     lead_time_pred = 24,
     vis_threshold = 1,
@@ -335,3 +335,76 @@ def SparkMET_4D_config_v2():
     return config                
                 
                 
+class SparkMET_Configs():
+    def __init__(self, img_size: int, in_channel: int, in_time: int, embd_size: int, num_heads: int, num_layers: int, FactType: str,):
+        self.FactType   = FactType
+        self.img_size   = img_size
+        self.in_channel = in_channel
+        self.in_time    = in_time
+        self.embd_size  = embd_size
+        self.num_heads  = num_heads
+        self.num_layers = num_layers
+
+    def return_config(self):
+        if self.FactType   == 'Emb_2D_SP_Patch':
+            return self.SparkMET_4D_Emb_2D_SP_Patch()
+        elif self.FactType == 'Emb_2D_Channel':
+            return self.SparkMET_4D_Emb_2D_Channel()
+        elif self.FactType == 'Emb_2D_Patch':
+            return self.SparkMET_4D_Emb_2D_Patch()
+    
+    def SparkMET_4D_Emb_2D_SP_Patch(self):
+        """Returns the ViT configuration."""
+        config = ml_collections.ConfigDict()
+        config.patches     = ml_collections.ConfigDict({'size': (int(self.img_size/4), int(self.img_size/4))})
+        config.embd_size   = self.embd_size
+        config.in_channels = (int(self.in_channel/self.in_time))
+        config.in_times    = self.in_time
+        config.transformer = ml_collections.ConfigDict()
+        config.transformer.mlp_dim = 512
+        config.transformer.num_heads = self.num_heads
+        config.transformer.num_layers = self.num_layers
+        config.transformer.attention_dropout_rate = 0.0
+        config.transformer.dropout_rate = 0.3
+        config.transformer.Emb_M = 'Emb_2D_SP_Patch'
+        config.classifier = 'token'
+        config.representation_size = None
+
+        return config
+   
+    def SparkMET_4D_Emb_2D_Channel(self):
+
+        """Returns the ViT configuration."""
+        config = ml_collections.ConfigDict()
+        config.patches     = ml_collections.ConfigDict({'size': (self.img_size, self.img_size)})
+        config.embd_size   = self.embd_size
+        config.in_channels = 1
+        config.in_times    = self.in_time
+        config.transformer = ml_collections.ConfigDict()
+        config.transformer.mlp_dim = 512
+        config.transformer.num_heads = self.num_heads
+        config.transformer.num_layers = self.num_layers
+        config.transformer.attention_dropout_rate = 0.0
+        config.transformer.dropout_rate = 0.3
+        config.transformer.Emb_M = 'Emb_2D_Channel'
+        config.classifier = 'token'
+        config.representation_size = None
+        return config
+    
+    def SparkMET_4D_Emb_2D_Patch(self):
+        """Returns the ViT configuration."""
+        config = ml_collections.ConfigDict()
+        config.patches     = ml_collections.ConfigDict({'size':(int(self.img_size/4), int(self.img_size/4))})
+        config.embd_size   = self.embd_size
+        config.in_channels = self.in_channel
+        config.in_times    = self.in_time
+        config.transformer = ml_collections.ConfigDict()
+        config.transformer.mlp_dim = 512
+        config.transformer.num_heads  = self.num_heads
+        config.transformer.num_layers = self.num_layers
+        config.transformer.attention_dropout_rate = 0.0
+        config.transformer.dropout_rate = 0.3
+        config.transformer.Emb_M = 'Emb_2D_Patch'
+        config.classifier = 'token'
+        config.representation_size = None
+        return config

@@ -17,167 +17,6 @@ import matplotlib.patches as patches
 from matplotlib.patches import Circle
 
 
-
-
-
-def print_report(train_df, valid_df, test_df):
-    train_fog_cases = train_df['vis_category'].value_counts()['fog']
-    valid_fog_cases = valid_df['vis_category'].value_counts()['fog']
-    test_fog_cases = test_df['vis_category'].value_counts()['fog']
-    print("#================================ Summary of Dataset ==================#")
-    print(f"number of training samples:   {train_df.shape[0]} | number of training fog cases:   {train_fog_cases}")
-    print(f"number of validation samples: {valid_df.shape[0]} | number of validation fog cases: {valid_fog_cases}")
-    print(f"number of test samples:       {test_df.shape[0]} | number of test fog cases:       {test_fog_cases}")
-    print("#======================================================================#")
-
-class EarlyStopping():
-    def __init__(self, tolerance=30, min_delta=0):
-
-        self.tolerance = tolerance
-        self.min_delta = min_delta
-        self.counter = 0
-        self.early_stop = False
-
-    def __call__(self, status):
-
-
-        if status is True:
-            self.counter = 0
-        elif status is False: 
-            self.counter +=1
-
-        print(f"count: {self.counter}")
-        if self.counter >= self.tolerance:  
-                self.early_stop = True
-
-def binary_acc(y_pred, y_test):
-    y_pred_tag = torch.round(torch.sigmoid(y_pred))
-    confusion_vector = y_pred_tag / y_test
-    # True Positive (TP): we predict a label of 1 (positive), and the true label is 1.
-    TP = torch.sum(confusion_vector == 1).item()
- 
-    # False Positive (FP): we predict a label of 1 (positive), but the true label is 0.
-    FP = torch.sum(confusion_vector == float('inf')).item()
- 
-    # True Negative (TN): we predict a label of 0 (negative), and the true label is 0.
-    TN = torch.sum(torch.isnan(confusion_vector)).item()
-
-    # False Negative (FN): we predict a label of 0 (negative), but the true label is 1.
-    FN = torch.sum(confusion_vector == 0).item()
-    #print(f"{TP}|{FP}|{TN}|{FN}")
-    if (((TP+FN)*(FN+TN))+((TP+FP)*(FP+TN))) == 0:
-        HSS = torch.as_tensor(0, dtype = torch.float32)
-    else:
-        HSS  = torch.as_tensor((2*((TP*TN)-(FP*FN)))/(((TP+FN)*(FN+TN))+((TP+FP)*(FP+TN))), dtype = torch.float32)
-    HSS = torch.round(HSS)
-
-    return HSS
-
-def save_loss_df(loss_stat, loss_df_name, loss_fig_name):
-
-    df = pd.DataFrame.from_dict(loss_stat).reset_index().melt(id_vars=['index']).rename(columns={"index":"epochs"})
-    df.to_csv(loss_df_name) 
-    plt.figure(figsize=(12,8))
-    sns.lineplot(data=df, x = "epochs", y="value", hue="variable").set_title('Train-Val Loss/Epoch')
-    plt.ylim(0, df['value'].max())
-    plt.savefig(loss_fig_name, dpi = 300)
-
-class Evaluation(): 
-    def __init__(self, ytrue, ypred, report_file_name = None, figure_name = None):
-        self.ytrue     = ytrue
-        self.ypred     = ypred
-        self.report_file_name  = report_file_name 
-        self.figure_name = figure_name
-
-
-    def confusion_matrix_calc(self): 
-
-        ypred_class = np.argmax(self.ypred, axis = 1)
-
-        CR, FA, miss, Hit= confusion_matrix(self.ytrue, ypred_class).ravel()
-        POD   = Hit/(Hit+miss)
-        F     = FA/(FA+CR)
-        FAR   = FA/(Hit+FA)
-        CSI   = Hit/(Hit+FA+miss)
-        PSS   = ((Hit*CR)-(FA*miss))/((FA+CR)*(Hit+miss))
-        HSS   = (2*((Hit*CR)-(FA*miss)))/(((Hit+miss)*(miss+CR))+((Hit+FA)*(FA+CR)))
-        ORSS  = ((Hit*CR)-(FA*miss))/((Hit*CR)+(FA*miss))
-        CSS   = ((Hit*CR)-(FA*miss))/((Hit+FA)*(miss+CR))
-
-        #SEDI = (log(F) - log(POD) - log(1-F) + log(1-POD))/(log(F) + log(POD) + log(1-F) + log(1-POD))
-
-        output = [Hit, miss, FA, CR, POD, F, FAR, CSI, PSS, HSS, ORSS, CSS]
-
-        with open(self.report_file_name, "a") as f: 
-            # for m in output:
-            #     name = str(m) 
-            #output= [
-                #'output = ['CSS', 'PSS' …]
-                #for m in output:
-                #print f'm: {eval{m)}', 
-            #     print(f"{name}: {m}", file=f)
-            print(f"Hit: {Hit}", file=f)
-            print(f"Miss: {miss}", file=f)
-            print(f"FA: {FA}", file=f)
-            print(f"CR: {CR}", file=f)
-            print(f"POD: {POD}", file=f)
-            print(f"F: {F}", file=f)
-            print(f"FAR: {FAR}", file=f)
-            print(f"CSI: {CSI}", file=f)
-            print(f"PSS: {PSS}", file=f)
-            print(f"HSS: {HSS}", file=f)
-            print(f"ORSS: {ORSS}", file=f)
-            print(f"CSS: {CSS}", file=f)
-            #print(f"SEDI: {SEDI}", file=f)
-
-        return output
-        
-    def ruc_curve_plot(self): 
-        ypred_fog = self.ypred[:, 1] 
-        fpr, tpr, thresholds = roc_curve(self.ytrue, ypred_fog)
-
-        ROC_AUC = auc(fpr, tpr)     
-        fig, ax = plt.subplots(figsize = (8, 6))
-        
-        ax.plot(fpr, tpr, linewidth=3, color = 'red')
-        ax.plot([0, 1], [0, 1], 'k--')
-        ax.set_xlim([-0.005, 1.0])
-        ax.set_ylim([0.0, 1.005])
-        ax.set_xlabel('FAR (probability of false detection)',  fontsize=16)
-        ax.set_ylabel('POD (probability of detection)', fontsize=16)
-        title_string = 'ROC curve (AUC = {0:.3f})'.format(ROC_AUC)
-        ax.set_title(title_string, fontsize=16)
-        plt.savefig(self.figure_name, dpi = 300)
-
-    def BS_BSS_calc(self): 
-
-        ytrue_rev    = ytrue.copy()
-        indices_one  = ytrue_rev == 1
-        indices_zero = ytrue_rev == 0
-        ytrue_rev[indices_one] = 0 # replacing 1s with 0s
-        ytrue_rev[indices_zero] = 1 # replacing 0s with 1s
-        
-        
-        P_c = np.mean(ytrue_rev)
-        bs_init = 0
-        bss_init = 0
-        for e in range(len(ytrue_rev)):
-            bss_init  = bs_init + (P_c - ytrue_rev[e])**2 # average value of fog accurence 
-            
-            if ytrue_rev[e] == 0:
-                prob = ypred[e, 1]
-                bs_init  = bs_init + (prob - 0)**2
-                
-            elif ytrue_rev[e] == 1:
-                prob = ypred[e, 0]
-                bs_init  = bs_init + (prob - 1)**2
-                
-        BS     = bs_init/len(ytrue_rev)
-        BS_ref = bss_init/len(ytrue_rev)
-        BSS    = (1-BS)/BS_ref 
-        
-        return BS, BSS
-
 def predict(model, data_loader_training, data_loader_validate, data_loader_testing, Exp_name = None,):
 
 
@@ -223,15 +62,13 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             train_label_true = sample['label_class']
             train_label_trues.append(train_label_true)
 
-            input_train      = sample['input'].to(0)
+            input_train      = sample['input'].to(device)
 
             train_attention_scores, train_out = model(input_train)
-            #train_attention_scores, train_out = model(input_train)
-
             #============================================================================================
             # Output
-            train_out = torch.exp(train_out)
-            train_out = train_out.detach().cpu().numpy()
+            train_out          = torch.exp(train_out)
+            train_out          = train_out.detach().cpu().numpy()
             train_fog_preds.append(train_out[:, 1])
             train_nonfog_preds.append(train_out[:, 0])
 
@@ -246,10 +83,6 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
                     layer_attention_outputs = np.concatenate((layer_attention_outputs, layer_output), axis = -1)
             train_attention_outputs.append(layer_attention_outputs) 
             
-
-
-
-            # inputs
             train_inputs.append(input_train.detach().cpu().numpy())
 
         train_attention_outputs  = np.concatenate(train_attention_outputs, axis = 0)
@@ -258,7 +91,6 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
         train_inputs             = np.concatenate(train_inputs, axis = 0)
 
 
-        
         train_date_times   = np.concatenate(train_date_times)
         train_round_times  = np.concatenate(train_round_times)
         train_cycletimes   = np.concatenate(train_cycletimes)
@@ -446,7 +278,8 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
 
     return predictions, inputs, raw_attention_scores, att_maps, att_scores #
 
-def train(model, optimizer, loss_func, training_config_dict, data_loader_training, data_loader_validate, Exp_name):
+def train(model, optimizer, loss_func, data_loader_training, data_loader_validate, 
+          epochs=100, early_stop_tolerance= 50, Exp_name = None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     save_dir = '/data1/fog/SparkMET/EXPs/' + Exp_name
  
@@ -456,12 +289,12 @@ def train(model, optimizer, loss_func, training_config_dict, data_loader_trainin
 
     loss_stats = {'train': [],"val": []}
 
-    best_val_loss = 100000 # initial dummy value
-    early_stopping = EarlyStopping(tolerance = training_config_dict['early_stop_tolerance'], min_delta=50)
-    step  = 0
+    best_val_loss  = 100000 # initial dummy value
+    early_stopping = EarlyStopping(tolerance = early_stop_tolerance, min_delta=50)
+    step           = 0
     #==============================================================================================================#
     #==============================================================================================================#
-    epochs = training_config_dict['epochs']
+
     
     for epoch in range(1, epochs+1):
         
@@ -475,12 +308,10 @@ def train(model, optimizer, loss_func, training_config_dict, data_loader_trainin
             input_train        = sample['input'].to(device) #.type(torch.LongTensor)
             train_label_true   = sample['label_class'].to(device)
 
-
             train_attention_scores, train_out = model(input_train)
             optimizer.zero_grad()
-            
             train_loss  = loss_func(train_out, train_label_true) #
-            
+
             train_loss.backward()
             optimizer.step()
             step += 1
@@ -530,6 +361,167 @@ def train(model, optimizer, loss_func, training_config_dict, data_loader_trainin
     _ = save_loss_df(loss_stats, loss_df_name, loss_fig_name)
 
     return model, loss_stats
+
+
+
+
+def print_report(train_df, valid_df, test_df):
+    train_fog_cases = train_df['vis_category'].value_counts()['fog']
+    valid_fog_cases = valid_df['vis_category'].value_counts()['fog']
+    test_fog_cases = test_df['vis_category'].value_counts()['fog']
+    print("#================================ Summary of Dataset ==================#")
+    print(f"number of training samples:   {train_df.shape[0]} | number of training fog cases:   {train_fog_cases}")
+    print(f"number of validation samples: {valid_df.shape[0]} | number of validation fog cases: {valid_fog_cases}")
+    print(f"number of test samples:       {test_df.shape[0]} | number of test fog cases:       {test_fog_cases}")
+    print("#======================================================================#")
+
+class EarlyStopping():
+    def __init__(self, tolerance=30, min_delta=0):
+
+        self.tolerance = tolerance
+        self.min_delta = min_delta
+        self.counter = 0
+        self.early_stop = False
+
+    def __call__(self, status):
+
+
+        if status is True:
+            self.counter = 0
+        elif status is False: 
+            self.counter +=1
+
+        print(f"count: {self.counter}")
+        if self.counter >= self.tolerance:  
+                self.early_stop = True
+
+def binary_acc(y_pred, y_test):
+    y_pred_tag = torch.round(torch.sigmoid(y_pred))
+    confusion_vector = y_pred_tag / y_test
+    # True Positive (TP): we predict a label of 1 (positive), and the true label is 1.
+    TP = torch.sum(confusion_vector == 1).item()
+ 
+    # False Positive (FP): we predict a label of 1 (positive), but the true label is 0.
+    FP = torch.sum(confusion_vector == float('inf')).item()
+ 
+    # True Negative (TN): we predict a label of 0 (negative), and the true label is 0.
+    TN = torch.sum(torch.isnan(confusion_vector)).item()
+
+    # False Negative (FN): we predict a label of 0 (negative), but the true label is 1.
+    FN = torch.sum(confusion_vector == 0).item()
+    #print(f"{TP}|{FP}|{TN}|{FN}")
+    if (((TP+FN)*(FN+TN))+((TP+FP)*(FP+TN))) == 0:
+        HSS = torch.as_tensor(0, dtype = torch.float32)
+    else:
+        HSS  = torch.as_tensor((2*((TP*TN)-(FP*FN)))/(((TP+FN)*(FN+TN))+((TP+FP)*(FP+TN))), dtype = torch.float32)
+    HSS = torch.round(HSS)
+
+    return HSS
+
+def save_loss_df(loss_stat, loss_df_name, loss_fig_name):
+
+    df = pd.DataFrame.from_dict(loss_stat).reset_index().melt(id_vars=['index']).rename(columns={"index":"epochs"})
+    df.to_csv(loss_df_name) 
+    plt.figure(figsize=(12,8))
+    sns.lineplot(data=df, x = "epochs", y="value", hue="variable").set_title('Train-Val Loss/Epoch')
+    plt.ylim(0, df['value'].max())
+    plt.savefig(loss_fig_name, dpi = 300)
+
+class Evaluation(): 
+    def __init__(self, ytrue, ypred, report_file_name = None, figure_name = None):
+        self.ytrue     = ytrue
+        self.ypred     = ypred
+        self.report_file_name  = report_file_name 
+        self.figure_name = figure_name
+
+
+    def confusion_matrix_calc(self): 
+
+        ypred_class = np.argmax(self.ypred, axis = 1)
+
+        CR, FA, miss, Hit= confusion_matrix(self.ytrue, ypred_class).ravel()
+        POD   = Hit/(Hit+miss)
+        F     = FA/(FA+CR)
+        FAR   = FA/(Hit+FA)
+        CSI   = Hit/(Hit+FA+miss)
+        PSS   = ((Hit*CR)-(FA*miss))/((FA+CR)*(Hit+miss))
+        HSS   = (2*((Hit*CR)-(FA*miss)))/(((Hit+miss)*(miss+CR))+((Hit+FA)*(FA+CR)))
+        ORSS  = ((Hit*CR)-(FA*miss))/((Hit*CR)+(FA*miss))
+        CSS   = ((Hit*CR)-(FA*miss))/((Hit+FA)*(miss+CR))
+
+        #SEDI = (log(F) - log(POD) - log(1-F) + log(1-POD))/(log(F) + log(POD) + log(1-F) + log(1-POD))
+
+        output = [Hit, miss, FA, CR, POD, F, FAR, CSI, PSS, HSS, ORSS, CSS]
+
+        with open(self.report_file_name, "a") as f: 
+            # for m in output:
+            #     name = str(m) 
+            #output= [
+                #'output = ['CSS', 'PSS' …]
+                #for m in output:
+                #print f'm: {eval{m)}', 
+            #     print(f"{name}: {m}", file=f)
+            print(f"Hit: {Hit}", file=f)
+            print(f"Miss: {miss}", file=f)
+            print(f"FA: {FA}", file=f)
+            print(f"CR: {CR}", file=f)
+            print(f"POD: {POD}", file=f)
+            print(f"F: {F}", file=f)
+            print(f"FAR: {FAR}", file=f)
+            print(f"CSI: {CSI}", file=f)
+            print(f"PSS: {PSS}", file=f)
+            print(f"HSS: {HSS}", file=f)
+            print(f"ORSS: {ORSS}", file=f)
+            print(f"CSS: {CSS}", file=f)
+            #print(f"SEDI: {SEDI}", file=f)
+
+        return output
+        
+    def ruc_curve_plot(self): 
+        ypred_fog = self.ypred[:, 1] 
+        fpr, tpr, thresholds = roc_curve(self.ytrue, ypred_fog)
+
+        ROC_AUC = auc(fpr, tpr)     
+        fig, ax = plt.subplots(figsize = (8, 6))
+        
+        ax.plot(fpr, tpr, linewidth=3, color = 'red')
+        ax.plot([0, 1], [0, 1], 'k--')
+        ax.set_xlim([-0.005, 1.0])
+        ax.set_ylim([0.0, 1.005])
+        ax.set_xlabel('FAR (probability of false detection)',  fontsize=16)
+        ax.set_ylabel('POD (probability of detection)', fontsize=16)
+        title_string = 'ROC curve (AUC = {0:.3f})'.format(ROC_AUC)
+        ax.set_title(title_string, fontsize=16)
+        plt.savefig(self.figure_name, dpi = 300)
+
+    def BS_BSS_calc(self): 
+
+        ytrue_rev    = ytrue.copy()
+        indices_one  = ytrue_rev == 1
+        indices_zero = ytrue_rev == 0
+        ytrue_rev[indices_one] = 0 # replacing 1s with 0s
+        ytrue_rev[indices_zero] = 1 # replacing 0s with 1s
+        
+        
+        P_c = np.mean(ytrue_rev)
+        bs_init = 0
+        bss_init = 0
+        for e in range(len(ytrue_rev)):
+            bss_init  = bs_init + (P_c - ytrue_rev[e])**2 # average value of fog accurence 
+            
+            if ytrue_rev[e] == 0:
+                prob = ypred[e, 1]
+                bs_init  = bs_init + (prob - 0)**2
+                
+            elif ytrue_rev[e] == 1:
+                prob = ypred[e, 0]
+                bs_init  = bs_init + (prob - 1)**2
+                
+        BS     = bs_init/len(ytrue_rev)
+        BS_ref = bss_init/len(ytrue_rev)
+        BSS    = (1-BS)/BS_ref 
+        
+        return BS, BSS
 
 def extract_selfattention_maps(transformer_encoder,x, mask, src_key_padding_mask):
     attention_maps = []
