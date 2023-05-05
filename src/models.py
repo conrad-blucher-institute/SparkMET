@@ -16,6 +16,13 @@ ACT2FN = {"gelu": torch.nn.functional.gelu, "relu": torch.nn.functional.relu, "s
 
 class Embeddings_2D_Patch(nn.Module):
     """Construct the embeddings from patch, position embeddings.
+        Input: x (size: TxWxHxC)==> Fag Case: 32x32x388
+         
+        number of patches = (image_size//patch_size)*(image_size//patch_size) = (32/8)*(32/8) = 16
+        position encoding = 1 
+        embedding size    = 4*8*8*97 (defult = 1024) ==> it can be any number dividable by number of heads!
+
+        Output: embeding token ((16 + 1 )x embeding size (1024)) = 1x17x1024
     """
     def __init__(self, config, img_size):
         super(Embeddings_2D_Patch, self).__init__()
@@ -54,7 +61,15 @@ class Embeddings_2D_Patch(nn.Module):
 
 class Spatial_Embeddings_2D_Patch(nn.Module):
     """Construct the embeddings from patch, position embeddings.
+        Input: x (size: TxWxHxC)==> Fag Case: 4x32x32x97
+         
+        number of patches = (image_size//patch_size)*(image_size//patch_size) = (32/8)*(32/8) = 16
+        position encoding = 1 
+        embedding size    = (8*8*97)*4 (defult = 1024) ==> it can be any number dividable by number of heads!
+
+        Output: embeding token ((4*16 + 1 )x embeding size (1024)) = 1x65x1024
     """
+
     def __init__(self, config, img_size):
         super(Spatial_Embeddings_2D_Patch, self).__init__()
 
@@ -91,6 +106,13 @@ class Spatial_Embeddings_2D_Patch(nn.Module):
 
 class Temporal_Embeddings_2D_Patch(nn.Module):
     """Construct the embeddings from patch, position embeddings.
+        Input: x (size: TxWxHxC)==> Fag Case: 4x32x32x97
+         
+        number of patches = (image_size//patch_size)*(image_size//patch_size) = (32/8)*(32/8) = 16
+        position encoding = 1 
+        embedding size    = (8*8*97)*4 (defult = 1024) ==> it can be any number dividable by number of heads!
+
+        Output: embeding token ((4*16 + 1 )x embeding size (1024)) = 1x65x1024
     """
     def __init__(self, config, img_size):
         super(Temporal_Embeddings_2D_Patch, self).__init__()
@@ -113,6 +135,13 @@ class Temporal_Embeddings_2D_Patch(nn.Module):
 class Embeddings_2D_SpatioTemporal_Patch(nn.Module):
     """
     Construct the embeddings from patch, position embeddings.
+    Input: x (size: TxWxHxC)==> Fag Case: 4x32x32x97
+        
+    number of patches = (image_size//patch_size)*(image_size//patch_size) = (32/8)*(32/8) = 16
+    position encoding = 1 
+    embedding size    = (8*8*97)*4 (defult = 1024) ==> it can be any number dividable by number of heads!
+
+    Output: embeding token ((4*16 + 1 )x embeding size (1024)) = 1x65x1024
 
     """
     def __init__(self, config, img_size):
@@ -125,7 +154,7 @@ class Embeddings_2D_SpatioTemporal_Patch(nn.Module):
 
         assert n_patches is not None, ('Number of Patches Can NOT be None!')
 
-        self.patch_embeddings    = Conv2d(in_channels = config.in_channels,
+        self.patch_embeddings = Conv2d(in_channels = config.in_channels,
                                        out_channels   = config.embd_size,
                                        kernel_size    = patch_size,
                                        stride         = patch_size)

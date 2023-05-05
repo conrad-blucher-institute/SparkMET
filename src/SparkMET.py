@@ -26,10 +26,10 @@ class SparkMET_Configs():
             return self.SparkMET_4D_Emb_2D_Patch()
     
     def SparkMET_4D_Emb_2D_SP_Patch(self):
-        """Returns the ViT configuration."""
+        """Returns the Spatio-temporal configuration."""
         config = ml_collections.ConfigDict()
-        config.patches     = ml_collections.ConfigDict({'size': (int(self.img_size/4), int(self.img_size/4))})
-        config.embd_size   = self.embd_size
+        config.patches     = ml_collections.ConfigDict({'size': (int(self.img_size/4), int(self.img_size/4))}) # 8x8
+        config.embd_size   = self.embd_size 
         config.in_channels = (int(self.in_channel/self.in_time))
         config.in_times    = self.in_time
         config.transformer = ml_collections.ConfigDict()
@@ -46,7 +46,7 @@ class SparkMET_Configs():
    
     def SparkMET_4D_Emb_2D_Channel(self):
 
-        """Returns the ViT configuration."""
+        """Returns the channel-wise configuration."""
         config = ml_collections.ConfigDict()
         config.patches     = ml_collections.ConfigDict({'size': (self.img_size, self.img_size)})
         config.embd_size   = self.embd_size
@@ -64,7 +64,7 @@ class SparkMET_Configs():
         return config
     
     def SparkMET_4D_Emb_2D_Patch(self):
-        """Returns the ViT configuration."""
+        """Returns the patch wise configuration."""
         config = ml_collections.ConfigDict()
         config.patches     = ml_collections.ConfigDict({'size':(int(self.img_size/4), int(self.img_size/4))})
         config.embd_size   = self.embd_size
@@ -98,7 +98,14 @@ class SparkMET():
             self.optimizer = optim.Adam(self.model.parameters(), 
                                     lr = lr, 
                                     weight_decay = wd)
+        elif optmizer is None: 
+            self.optimizer = optim.Adam(self.model.parameters(), 
+                        lr = lr, 
+                        weight_decay = wd)
+        
         if loss == 'NLLLoss': 
+            self.loss_func  = torch.nn.NLLLoss() 
+        elif loss is None: 
             self.loss_func  = torch.nn.NLLLoss() 
 
         return self.model, self.optimizer, self.loss_func

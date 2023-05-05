@@ -1,6 +1,5 @@
 import os.path
 import torch 
-import time
 import netCDF4
 import json
 import numpy as np
@@ -8,7 +7,6 @@ import statistics as st
 import scipy.ndimage
 import matplotlib.pyplot as plt
 import pandas as pd
-import ml_collections
 
 
 #****************************************************************************************************#
@@ -623,6 +621,7 @@ def Fog_DataLoader(data_config_dict, batch_size: int, WeightR: False, SaveDir: s
     save_dir = SaveDir + Exp_name
     isExist  = os.path.isdir(save_dir)
 
+    # creating all the save directories: 
     if not isExist:
         os.mkdir(save_dir)
         os.makedirs(save_dir + '/coords')
@@ -633,7 +632,7 @@ def Fog_DataLoader(data_config_dict, batch_size: int, WeightR: False, SaveDir: s
 
     mean_std_dict_name = SaveDir + '/mean_std.json' 
 
-    # creating the entire data: 
+    # creating the entire data dataframe (this is just csv file to read data through training): 
     isDFExists = os.path.isfile(train_df_name)
     if not isDFExists:
 
