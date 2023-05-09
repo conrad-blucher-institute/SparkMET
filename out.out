@@ -65,3 +65,6 @@ count: 8
 Epoch 020: | Train Loss: 0.0583 | Val Loss: 0.0701 | Time(s): 2898.031
 Model is not saved! Current Val Loss: 0.0701
 count: 9
+Epoch 021: | Train Loss: 0.0587 | Val Loss: 0.0523 | Time(s): 2903.644
+Model is not saved! Current Val Loss: 0.0523
+count: 10
