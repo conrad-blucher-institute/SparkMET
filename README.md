@@ -8,3 +8,4 @@
 - [ ] Update all functions' documentation 
 - [ ] Merge two Factorized and Venallia ViT
 - [ ] Add dictionary of optimizers and loss functions
+- [ ] check feder for data loading  

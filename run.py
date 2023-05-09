@@ -6,8 +6,8 @@ from src import FogDataloader as fog
 from src import SparkMET as sm
 
 
-
-Exp_name = 'test'
+# Exp_Name: embeddingtype_lr_wd_batch_size_nheads_nlayers
+Exp_name = '4D_Emb2DPatch_Fact_0001_01_32_8_6'
 SaveDir  = '/data1/fog/SparkMET/EXPs/'
 
 #****************************************************************************************************#
@@ -16,7 +16,7 @@ SaveDir  = '/data1/fog/SparkMET/EXPs/'
 
 FogDataConfigs = fog.FogData_Configs(input_path      = None, 
                                      target_path     = None, 
-                                     start_date      = fog.year_information['2020'][0], 
+                                     start_date      = fog.year_information['2009'][0], 
                                      finish_date     = fog.year_information['2020'][1], 
                                      data_split_dict = fog.data_split_dict_[0], 
                                      data_straucture = '4D',
@@ -43,22 +43,26 @@ SparkMET_Config = sm.SparkMET_Configs(img_size   = 32,
                                       embd_size  = 1024, 
                                       num_heads  = 8, 
                                       num_layers = 6, 
-                                      FactType   = 'Emb_2D_SP_Patch').return_config()
+                                      FactType   = 'Emb_2D_Patch_Fact').return_config()
 
 SparkMET_Obj    = sm.SparkMET(SparkMET_Config, 
                            SaveDir = SaveDir, 
                            Exp_Name = Exp_name) 
 
+
 model, optimizer, loss_func = SparkMET_Obj.compile(optmizer = 'adam', 
                                                    loss = 'NLLLoss', 
                                                    lr = 0.0001, 
                                                    wd = 0.01)
+ 
+
 
 model, loss_stat = SparkMET_Obj.train(model, optimizer, loss_func, 
                                       data_loader_training, 
                                       data_loader_validate, 
-                                      epochs = 2, 
-                                      early_stop_tolerance = 50)
+                                      epochs = 30, 
+                                      early_stop_tolerance = 30)
+
 
 list_outputs     = SparkMET_Obj.predict(model, data_loader_training, 
                                         data_loader_validate, 

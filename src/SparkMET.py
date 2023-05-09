@@ -24,6 +24,8 @@ class SparkMET_Configs():
             return self.SparkMET_4D_Emb_2D_Channel()
         elif self.FactType == 'Emb_2D_Patch':
             return self.SparkMET_4D_Emb_2D_Patch()
+        elif self.FactType == 'Emb_2D_Patch_Fact':
+            return self.SparkMET_4D_Emb_2D_Patch_Fact()
     
     def SparkMET_4D_Emb_2D_SP_Patch(self):
         """Returns the Spatio-temporal configuration."""
@@ -80,6 +82,24 @@ class SparkMET_Configs():
         config.classifier = 'token'
         config.representation_size = None
         return config
+    
+    def SparkMET_4D_Emb_2D_Patch_Fact(self):
+        """Returns the ViT configuration."""
+        config = ml_collections.ConfigDict()
+        config.patches     = ml_collections.ConfigDict({'size': (int(self.img_size/4), int(self.img_size/4))})
+        config.embd_size   = self.embd_size
+        config.in_channels = (int(self.in_channel/self.in_time))
+        config.in_times    = self.in_time
+        config.transformer = ml_collections.ConfigDict()
+        config.transformer.mlp_dim = 512
+        config.transformer.num_heads = self.num_heads
+        config.transformer.num_layers = self.num_layers
+        config.transformer.attention_dropout_rate = 0.0
+        config.transformer.dropout_rate = 0.3
+        config.transformer.Emb_M = 'Emb_2D_Patch_Fact'
+        config.classifier = 'token'
+        config.representation_size = None
+        return config
 
 
 
@@ -92,7 +112,7 @@ class SparkMET():
 
     def compile(self, optmizer: str, loss: str, lr: float, wd:float, ):
 
-        self.model = models.VisionTransformer(self.SparkMET_Configs, img_size = 32, num_classes=2,).to(device)
+        self.model = models.Factorized_VisionTransformer(self.SparkMET_Configs, img_size = 32, num_classes=2,).to(device)
 
         if optmizer == 'adam':
             self.optimizer = optim.Adam(self.model.parameters(), 

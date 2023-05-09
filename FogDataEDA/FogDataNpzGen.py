@@ -1,6 +1,6 @@
+
 import os.path
 import torch 
-import time
 import netCDF4
 import json
 import numpy as np
@@ -8,34 +8,72 @@ import statistics as st
 import scipy.ndimage
 import matplotlib.pyplot as plt
 import pandas as pd
-plt.rcParams.update({'axes.titlesize': 14})
-plt.rc('xtick', labelsize=12)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=12)    # fontsize of the tick labels
-plt.rc('axes', labelsize=14)     # fontsize of the x and y labels 
+
+year_information          = {'2009':['20090101', '20091231'],
+                            '2010':['20100101', '20101231'],
+                            '2011':['20110101', '20111231'],
+                            '2012':['20120101', '20121231'],
+                            '2013':['20130101', '20131231'],
+                            '2014':['20140101', '20141231'],
+                            '2015':['20150101', '20151231'],
+                            '2016':['20160101', '20161231'],
+                            '2017':['20170101', '20171231'],
+                            '2018':['20180101', '20181231'],
+                            '2019':['20190101', '20191231'],
+                            '2020':['20200101', '20201231']}
 
 
-from models import engine, configs 
+data_split_dict_ = {'train': ['2013', '2014', '2015', '2016', '2017'], 
+                    'valid': ['2009', '2010', '2011'], 
+                    'test': ['2018', '2019', '2020']},
+class FogData_Configs():
+    def __init__(self, input_path: str, target_path: str, start_date: str, finish_date: str, data_split_dict: dict, 
+                 data_straucture: str, lead_time_pred: int, vis_threshold: int, points_coords:dict, predictor_names: list):
+        self.input_path            = input_path
+        self.target_path           = target_path
+        self.start_date            = start_date
+        self.finish_date           = finish_date
+        self.data_split_dict       = data_split_dict
+        self.data_straucture       = data_straucture
+        self.lead_time_pred        = lead_time_pred
+        self.vis_threshold         = vis_threshold
+        self.points_coords         = points_coords
+        self.predictor_names       = predictor_names
+
+    def return_config(self):
+        data_config_dict = dict(
+            input_path      = self.input_path,
+            target_path     = self.target_path, 
+            start_date      = self.start_date,
+            finish_date     = self.finish_date,
+            data_split_dict = self.data_split_dict,
+            data_straucture = self.data_straucture,
+            lead_time_pred  = self.lead_time_pred,
+            vis_threshold   = self.vis_threshold,
+            points_coords   = self.points_coords,
+            predictor_names = self.predictor_names
+            )
+        
+        return data_config_dict
 
 
 class input_dataframe_generater():
     
-    def __init__(self, img_path = None, target_path = None, first_date_string = None, last_date_string = None, target_binarizing_thre = None):
+    def __init__(self, img_path= None, target_path = None, first_date_string = None, last_date_string = None, 
+                 target_binarizing_thre = None,  year_split_dict = None):
 
         self.img_path          = img_path
         self.first_date_string = first_date_string
         self.last_date_string  = last_date_string
-        self.th = target_binarizing_thre
-
-
+        self.th                = target_binarizing_thre
+        self.year_split_dict  = year_split_dict
 
         if img_path is None: 
-            self.img_path = configs.DEFAULT_IMAGE_DIR_NAME
+            self.img_path = DEFAULT_IMAGE_DIR_NAME
         if target_path is None: 
-            self.target_path = configs.DEFAULT_TARGET_DIR_NAME
-
+            self.target_path = DEFAULT_TARGET_DIR_NAME
 
     def dataframe_generation(self):
-        start_time = time.time()
         # cleaning the target dataset: 
         target_dataset_cleaned = self.target_dataset_cleaning(self.first_date_string, 
                                                                 self.last_date_string)
@@ -88,13 +126,12 @@ class input_dataframe_generater():
 
         return target
 
-
     def check_target_input_consistency(self, target):
         #start_time = time.time()
 
         hour_prediction_names = '000'
         nam_file_names, mur_file_names, files_datecycle_string = [], [], []
-        for (root, dirs, files) in os.walk(configs.DEFAULT_IMAGE_DIR_NAME):
+        for (root, dirs, files) in os.walk(DEFAULT_IMAGE_DIR_NAME):
             dirs.sort()
             files.sort()
             if len(files) == 149:
@@ -146,121 +183,32 @@ class input_dataframe_generater():
         target['vis_class'].replace(encode_map, inplace = True)
 
         return target
+    
+    def split_data_train_valid_test(self):
+        target_dataset_cleaned = self.target_dataset_cleaning(self.first_date_string, 
+                                                                self.last_date_string)
+        # removing the days with incomplete input observations (for each day there should be 149 inpu netcdf files in the folder): 
+        dataset = self.check_target_input_consistency(target_dataset_cleaned) 
 
-class return_train_variable_mean_std():
+        train_years = self.year_split_dict['train']
+        valid_years = self.year_split_dict['valid']
+        test_years  = self.year_split_dict['test']
 
-    def __init__(self, dataset, predictor_names = None, lead_time_pred = None):
-        self.dataset = dataset
-        self.predictor_names_dict = predictor_names.copy() 
-        self.lead_time_pred = lead_time_pred
-        self.predictor_names_dict.append('analysed_sst')
-     
-    def return_full_timeseries_names(self, netcdf_file_root_name):
+        train_df = dataset[dataset['year'].isin(train_years)]
+        train_df.reset_index(inplace = True, drop=True)
 
-        if self.lead_time_pred == 6:
-            netcdf_file_006_names  = netcdf_file_root_name[0:57] + '006_input.nc'
-            netcdf_file_names_list = [netcdf_file_root_name, netcdf_file_006_names]
-            lead_time_steps = ['000', '006']
+        valid_df = dataset[dataset['year'].isin(valid_years)]
+        valid_df.reset_index(inplace = True, drop=True)
 
-        elif self.lead_time_pred == 12:
-            netcdf_file_006_names = netcdf_file_root_name[0:57] + '006_input.nc'
-            netcdf_file_009_names = netcdf_file_root_name[0:57] + '009_input.nc'
-            netcdf_file_012_names = netcdf_file_root_name[0:57] + '012_input.nc'
-            netcdf_file_names_list = [netcdf_file_root_name, netcdf_file_006_names, netcdf_file_009_names, netcdf_file_012_names]
-            lead_time_steps = ['000', '006', '009', '012']
-        elif self.lead_time_pred == 24:
-            netcdf_file_006_names = netcdf_file_root_name[0:57] + '006_input.nc'
-            netcdf_file_012_names = netcdf_file_root_name[0:57] + '012_input.nc'
-            netcdf_file_024_names = netcdf_file_root_name[0:57] + '024_input.nc'
-            netcdf_file_names_list = [netcdf_file_root_name, netcdf_file_006_names, netcdf_file_012_names, netcdf_file_024_names]
-            lead_time_steps = ['000', '006', '012', '024']
-
-        return netcdf_file_names_list, lead_time_steps
-
-    def return_mean_std_dict(self):
-
-        output_dict = {}
-        for name in self.predictor_names_dict: 
-
-            list_of_mean = []
-
-            for idx in range(len(self.dataset)):
-
-                nc_nam_timeseries_files_path_list = self.dataset.loc[idx]['nam_nc_files_path'] 
-                full_timeseries_names, _ = self.return_full_timeseries_names(nc_nam_timeseries_files_path_list)
+        test_df  = dataset[dataset['year'].isin(test_years)]
+        test_df.reset_index(inplace = True, drop=True)
 
 
-                if name == 'analysed_sst': 
-                    netcdf_mur_root_names = self.dataset.loc[idx]['mur_nc_files_path'] 
-                    netcdf_mur_root_names = netcdf_mur_root_names[0:57] + '009_input.nc'
-                    mur_dataset_object = netCDF4.Dataset(netcdf_mur_root_names)
-                    mur_predictor_matrix = np.array(
-                        mur_dataset_object.variables['analysed_sst'][:], dtype = float).flatten()
-                    mur_predictor_matrix = mur_predictor_matrix[mur_predictor_matrix > 0]
-                    mur_predictor_matrix_mean = np.mean(mur_predictor_matrix)
-
-                    list_of_mean.append(mur_predictor_matrix_mean)
-                else: 
-                    
-                    for i, nc_file_name in enumerate(full_timeseries_names):
-            
-                        dataset_object = netCDF4.Dataset(nc_file_name)
-
-                        this_predictor_matrix = np.array(
-                            dataset_object.variables[name][:], dtype = float)
-
-                        this_predictor_leadtime_mean = np.mean(this_predictor_matrix)
-
-                        list_of_mean.append(this_predictor_leadtime_mean)
-
-            this_predictor_mean = st.mean(list_of_mean)
-            this_predictor_std  = st.pstdev(list_of_mean)
-
-            output_dict [name] = [this_predictor_mean, this_predictor_std] 
-            
-            
-        '''mur_list_of_mean = []
-        
-        for idx in range(len(self.dataset)):
-
-            netcdf_mur_root_names = self.dataset.loc[idx]['mur_nc_files_path'] 
-            netcdf_mur_root_names = netcdf_mur_root_names[0:57] + '009_input.nc'
-            dataset_object = netCDF4.Dataset(netcdf_mur_root_names)
-
-            this_predictor_matrix = np.array(
-                dataset_object.variables['analysed_sst'][:], dtype = float).flatten()
-            this_predictor_matrix[this_predictor_matrix > 0]
-            this_predictor_leadtime_mean = np.mean(this_predictor_matrix)
-
-            mur_list_of_mean.append(this_predictor_leadtime_mean)
-
-        mur_predictor_mean = st.mean(mur_list_of_mean)
-        mur_predictor_std  = st.pstdev(mur_list_of_mean)
-
-        output_dict ['analysed_sst'] = [mur_predictor_mean, mur_predictor_std] '''
-        
-        return output_dict
-
-def split_data_train_valid_test(dataset, year_split_dict = None):
-
-    train_years = year_split_dict['train']
-    valid_years = year_split_dict['valid']
-    test_years  = year_split_dict['test']
+        return [train_df, valid_df, test_df]
 
 
-    train_df = dataset[dataset['year'].isin(train_years)]
-    train_df.reset_index(inplace = True, drop=True)
 
-    valid_df = dataset[dataset['year'].isin(valid_years)]
-    valid_df.reset_index(inplace = True, drop=True)
-
-    test_df  = dataset[dataset['year'].isin(test_years)]
-    test_df.reset_index(inplace = True, drop=True)
-
-
-    return [train_df, valid_df, test_df]
-
-class DataAdopter(): 
+class FogDataNPZ(): 
 
     def __init__(self, dataframe, map_structure:str, 
                                 predictor_names: list, 
@@ -274,16 +222,25 @@ class DataAdopter():
         self.lead_time_pred       = lead_time_pred
         self.mean_std_dict        = mean_std_dict 
 
-        self.point_geolocation_dic= point_geolocation_dic
+        self.point_geolocation_dic  = point_geolocation_dic
 
         #self.dataframe       = self.binarize_onehot_label_df()
         self.label_onehot_df = pd.get_dummies(self.dataframe.vis_category)
-        
-        
-        
+    
+    def return_data_dict(self):
+        len = self.__len__()
+        output_dict = {}
+        for idx in range(len):
+            sample = self.__getitem__(idx)
+            date_cycletime = sample['date_cycletime']
+            output_dict[date_cycletime] = sample
+
+        return output_dict
+    
+
     def __len__(self):
         return len(self.dataframe)
-
+    
     def __getitem__(self, idx): 
 
         # reading the data date and cycletime: 
@@ -532,112 +489,218 @@ class DataAdopter():
         output = pd.concat(output_dfs, axis=1)
 
         return output 
-        
-def cost_sensitive_weight_sampler(df):
-    class_counts = df.vis_class.value_counts()
-    class_weights = 1/class_counts
-    sample_weights = [1/class_counts[i] for i in df.vis_class.values]
-    return sample_weights
-
-def return_weight_sampler(train, val, test): 
-
-    train_weights = cost_sensitive_weight_sampler(train)
-    train_sampler = torch.utils.data.sampler.WeightedRandomSampler(train_weights, 
-                                                                len(train_weights), replacement=True)    
-    valid_weights = cost_sensitive_weight_sampler(val)
-    val_sampler   = torch.utils.data.sampler.WeightedRandomSampler(valid_weights, 
-                                                                len(valid_weights), replacement=True)    
-    
-    test_weights  = cost_sensitive_weight_sampler(test)
-    test_sampler = torch.utils.data.sampler.WeightedRandomSampler(test_weights, len(test_weights))
-
-    return train_sampler, val_sampler, test_sampler
-
-#===========
-def return_data_loaders (data_config_dict, training_config_dict, Exp_name):
-
-    save_dir = '/data1/fog/SparkMET/EXPs/' + Exp_name
-    isExist  = os.path.isdir(save_dir)
-
-    if not isExist:
-        os.mkdir(save_dir)
-        os.makedirs(save_dir + '/coords')
-
-    train_df_name  = save_dir + '/coords/train.csv' 
-    valid_df_name  = save_dir + '/coords/valid.csv'
-    test_df_name   = save_dir + '/coords/test.csv' 
-
-    dict_name      = save_dir + '/coords/mean_std.json' 
-
-    # creating the entire data: 
-    isDFExists = os.path.isfile(train_df_name)
-    if not isDFExists:
-        dataset = input_dataframe_generater(img_path               = None, 
-                                            target_path            = None, 
-                                            first_date_string      = data_config_dict['start_date'], 
-                                            last_date_string       = data_config_dict['finish_date'], 
-                                            target_binarizing_thre = data_config_dict['vis_threshold']).dataframe_generation()
-
-        # split the data into train, validation and test:
-        train_df, valid_df, test_df = split_data_train_valid_test(dataset, year_split_dict = data_config_dict['data_split_dict'])
-        train_df.to_csv(train_df_name)
-        valid_df.to_csv(valid_df_name)
-        test_df.to_csv(test_df_name)
-    else: 
-        train_df = pd.read_csv(train_df_name)
-        valid_df = pd.read_csv(valid_df_name)
-        test_df  = pd.read_csv(test_df_name)
-
-
-    _ = engine.print_report(train_df, valid_df, test_df)
-
-    # calculating the mean and std of training variables: 
-    #start_time = time.time()
-    isDictExists = os.path.isfile(dict_name)
-    if not isDictExists:
-        norm_mean_std_dict = return_train_variable_mean_std(train_df, 
-                                                    predictor_names = data_config_dict['predictor_names'], 
-                                                    lead_time_pred = data_config_dict['lead_time_pred']).return_mean_std_dict()
-        #print("--- Normalize data: %s seconds ---" % (time.time() - start_time))
-        with open(dict_name, "w") as outfile:
-            json.dump(norm_mean_std_dict, outfile)
-    else: 
-        with open(dict_name, 'r') as file:
-            norm_mean_std_dict = json.load(file)
-
-
-    train_dataset = DataAdopter(train_df, 
-                                map_structure         = data_config_dict['data_straucture'], 
-                                predictor_names       = data_config_dict['predictor_names'], 
-                                lead_time_pred        = data_config_dict['lead_time_pred'], 
-                                mean_std_dict         = norm_mean_std_dict,
-                                point_geolocation_dic = data_config_dict['points_coords'])
-
-    valid_dataset = DataAdopter(valid_df, 
-                                map_structure         = data_config_dict['data_straucture'], 
-                                predictor_names       = data_config_dict['predictor_names'], 
-                                lead_time_pred        = data_config_dict['lead_time_pred'], 
-                                mean_std_dict         = norm_mean_std_dict,
-                                point_geolocation_dic = data_config_dict['points_coords'])
-
-    test_dataset = DataAdopter(test_df, 
-                                map_structure         = data_config_dict['data_straucture'], 
-                                predictor_names       = data_config_dict['predictor_names'], 
-                                lead_time_pred        = data_config_dict['lead_time_pred'],  
-                                mean_std_dict         = norm_mean_std_dict,
-                                point_geolocation_dic = data_config_dict['points_coords'])
 
 
 
-    train_sampler, valid_sampler, test_sampler = return_weight_sampler(train_df, valid_df, test_df)
 
-    data_loader_training = torch.utils.data.DataLoader(train_dataset, batch_size= training_config_dict['batch_size'], 
-                                                    shuffle = True,  num_workers=0)  # sampler=train_sampler,
-    data_loader_validate = torch.utils.data.DataLoader(valid_dataset, batch_size= training_config_dict['batch_size'], 
-                                                    shuffle = False, num_workers=0)  # sampler=valid_sampler,
-    data_loader_testing  = torch.utils.data.DataLoader(test_dataset, batch_size= training_config_dict['batch_size'], 
-                                                    shuffle = False,  num_workers=0) # sampler=test_sampler, 
-    
 
-    return data_loader_training, data_loader_validate, data_loader_testing
-        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+plt.rcParams.update({'axes.titlesize': 14})
+plt.rc('xtick', labelsize=12)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=12)    # fontsize of the tick labels
+plt.rc('axes', labelsize=14)     # fontsize of the x and y labels 
+
+
+DEFAULT_IMAGE_DIR_NAME    = '/data1/fog-data/fog-maps/'
+DEFAULT_TARGET_DIR_NAME   = '/data1/fog/Dataset/TARGET'
+
+NAM_coords = {'P1':[23, 6],
+         'P2':[22, 8]} 
+
+'''NAM_coords = {'P1':[23, 6],
+         'P2':[22, 8],
+         'P3':[21, 10],
+         'P4':[19, 12]} '''
+
+# Variable names.
+NETCDF_X = 'x'
+NETCDF_Y = 'y'
+MUR_LATITUDE = 'lat'
+MUR_LONGITUDE = 'lon'
+NETCDF_LATITUDE = 'latitude'
+NETCDF_LONGITUDE = 'longitude'
+NETCDF_TIME = 'time'
+
+
+NETCDF_UGRD_10m   = 'UGRD_10maboveground'
+#NETCDF_UGRD_1000mb= 'UGRD_1000mb'
+NETCDF_UGRD_975mb = 'UGRD_975mb'
+NETCDF_UGRD_950mb = 'UGRD_950mb'
+NETCDF_UGRD_925mb = 'UGRD_925mb'
+NETCDF_UGRD_900mb = 'UGRD_900mb'
+NETCDF_UGRD_875mb = 'UGRD_875mb'
+NETCDF_UGRD_850mb = 'UGRD_850mb'
+NETCDF_UGRD_825mb = 'UGRD_825mb'
+NETCDF_UGRD_800mb = 'UGRD_800mb'
+NETCDF_UGRD_775mb = 'UGRD_775mb'
+NETCDF_UGRD_750mb = 'UGRD_750mb'
+NETCDF_UGRD_725mb = 'UGRD_725mb'
+NETCDF_UGRD_700mb = 'UGRD_700mb'
+NETCDF_VGRD_10m   = 'VGRD_10maboveground'
+#NETCDF_VGRD_1000mb= 'VGRD_1000mb'
+NETCDF_VGRD_975mb = 'VGRD_975mb'
+NETCDF_VGRD_950mb = 'VGRD_950mb'
+NETCDF_VGRD_925mb = 'VGRD_925mb'
+NETCDF_VGRD_900mb = 'VGRD_900mb'
+NETCDF_VGRD_875mb = 'VGRD_875mb'
+NETCDF_VGRD_850mb = 'VGRD_850mb'
+NETCDF_VGRD_825mb = 'VGRD_825mb'
+NETCDF_VGRD_800mb = 'VGRD_800mb'
+NETCDF_VGRD_775mb = 'VGRD_775mb'
+NETCDF_VGRD_750mb = 'VGRD_750mb'
+NETCDF_VGRD_725mb = 'VGRD_725mb'
+NETCDF_VGRD_700mb = 'VGRD_700mb'
+#NETCDF_VVEL_1000mb= 'VVEL_1000mb'
+NETCDF_VVEL_975mb = 'VVEL_975mb'
+NETCDF_VVEL_950mb = 'VVEL_950mb'
+NETCDF_VVEL_925mb = 'VVEL_925mb'
+NETCDF_VVEL_900mb = 'VVEL_900mb'
+NETCDF_VVEL_875mb = 'VVEL_875mb'
+NETCDF_VVEL_850mb = 'VVEL_850mb'
+NETCDF_VVEL_825mb = 'VVEL_825mb'
+NETCDF_VVEL_800mb = 'VVEL_800mb'
+NETCDF_VVEL_775mb = 'VVEL_775mb'
+NETCDF_VVEL_750mb = 'VVEL_750mb'
+NETCDF_VVEL_725mb = 'VVEL_725mb'
+NETCDF_VVEL_700mb = 'VVEL_700mb'
+#NETCDF_TKE_1000mb = 'TKE_1000mb'
+NETCDF_TKE_975mb = 'TKE_975mb'
+NETCDF_TKE_950mb = 'TKE_950mb'
+NETCDF_TKE_925mb = 'TKE_925mb'
+NETCDF_TKE_900mb = 'TKE_900mb'
+NETCDF_TKE_875mb = 'TKE_875mb'
+NETCDF_TKE_850mb = 'TKE_850mb'
+NETCDF_TKE_825mb = 'TKE_825mb'
+NETCDF_TKE_800mb = 'TKE_800mb'
+NETCDF_TKE_775mb = 'TKE_775mb'
+NETCDF_TKE_750mb = 'TKE_750mb'
+NETCDF_TKE_725mb = 'TKE_725mb'
+NETCDF_TKE_700mb = 'TKE_700mb'
+NETCDF_TMP_SFC  = 'TMP_surface'
+NETCDF_TMP_2m    = 'TMP_2maboveground'
+#NETCDF_TMP_1000mb= 'TMP_1000mb'
+NETCDF_TMP_975mb = 'TMP_975mb'
+NETCDF_TMP_950mb = 'TMP_950mb'
+NETCDF_TMP_925mb = 'TMP_925mb'
+NETCDF_TMP_900mb = 'TMP_900mb'
+NETCDF_TMP_875mb = 'TMP_875mb'
+NETCDF_TMP_850mb = 'TMP_850mb'
+NETCDF_TMP_825mb = 'TMP_825mb'
+NETCDF_TMP_800mb   = 'TMP_800mb'
+NETCDF_TMP_775mb   = 'TMP_775mb'
+NETCDF_TMP_750mb   = 'TMP_750mb'
+NETCDF_TMP_725mb   = 'TMP_725mb'
+NETCDF_TMP_700mb   = 'TMP_700mb'
+#NETCDF_RH_1000mb = 'RH_1000mb'
+NETCDF_RH_975mb    = 'RH_975mb'
+NETCDF_RH_950mb    = 'RH_950mb'
+NETCDF_RH_925mb    = 'RH_925mb'
+NETCDF_RH_900mb    = 'RH_900mb'
+NETCDF_RH_875mb    = 'RH_875mb'
+NETCDF_RH_850mb    = 'RH_850mb'
+NETCDF_RH_825mb    = 'RH_825mb'
+NETCDF_RH_800mb    = 'RH_800mb'
+NETCDF_RH_775mb    = 'RH_775mb'
+NETCDF_RH_750mb    = 'RH_750mb'
+NETCDF_RH_725mb    = 'RH_725mb'
+NETCDF_RH_700mb    = 'RH_700mb'
+NETCDF_DPT_2m      = 'DPT_2maboveground'
+NETCDF_FRICV       = 'FRICV_surface'
+NETCDF_VIS         = 'VIS_surface'
+NETCDF_RH_2m       = 'RH_2maboveground'
+#
+NETCDF_Q975        = 'Q_975mb'
+NETCDF_Q950        = 'Q_950mb'
+NETCDF_Q925        = 'Q_925mb'
+NETCDF_Q900        = 'Q_900mb'
+NETCDF_Q875        = 'Q_875mb'
+NETCDF_Q850        = 'Q_850mb'
+NETCDF_Q825        = 'Q_825mb'
+NETCDF_Q800        = 'Q_800mb'
+NETCDF_Q775        = 'Q_775mb'
+NETCDF_Q750        = 'Q_750mb'
+NETCDF_Q725        = 'Q_725mb'
+NETCDF_Q700        = 'Q_700mb'
+NETCDF_Q           = 'Q_surface'
+#NETCDF_DQDZ1000SFC = 'DQDZ1000SFC'
+NETCDF_DQDZ975SFC  = 'DQDZ975SFC'
+NETCDF_DQDZ950975  = 'DQDZ950975'
+NETCDF_DQDZ925950  = 'DQDZ925950'
+NETCDF_DQDZ900925  = 'DQDZ900925'
+NETCDF_DQDZ875900  = 'DQDZ875900'
+NETCDF_DQDZ850875  = 'DQDZ850875'
+NETCDF_DQDZ825850  = 'DQDZ825850'
+NETCDF_DQDZ800825  = 'DQDZ800825'
+NETCDF_DQDZ775800  = 'DQDZ775800'
+NETCDF_DQDZ750775  = 'DQDZ750775'
+NETCDF_DQDZ725750  = 'DQDZ725750'
+NETCDF_DQDZ700725  = 'DQDZ700725'
+NETCDF_LCLT        = 'LCLT'
+
+#+++++++++++++++
+NETCDF_SST    = 'analysed_sst'
+NETCDF_TMPDPT = 'TMP-DPT'
+NETCDF_TMPSST = 'TMP-SST'
+NETCDF_DPTSST = 'DPT-SST'
+PREDICTOR_NAMES_KEY  = 'predictor_names'
+PREDICTOR_MATRIX_KEY = 'predictor_matrix'
+CUBE_NAMES_KEY       = 'cube_name'
+SST_MATRIX_KEY       = 'sst_matrix'
+SST_NAME_KEY         = 'sst_name'
+
+NETCDF_PREDICTOR_NAMES = {
+    'All': [NETCDF_TMP_2m, NETCDF_TMP_975mb, NETCDF_TMP_950mb, NETCDF_TMP_925mb, NETCDF_TMP_900mb, NETCDF_TMP_875mb, NETCDF_TMP_850mb, 
+    NETCDF_TMP_825mb, NETCDF_TMP_800mb, NETCDF_TMP_775mb, NETCDF_TMP_750mb, NETCDF_TMP_725mb, NETCDF_TMP_700mb, 
+    NETCDF_UGRD_10m, NETCDF_VGRD_10m, NETCDF_FRICV, NETCDF_UGRD_975mb, NETCDF_VGRD_975mb, NETCDF_TKE_975mb,
+    NETCDF_UGRD_950mb, NETCDF_VGRD_950mb, NETCDF_TKE_950mb, NETCDF_UGRD_925mb, NETCDF_VGRD_925mb, NETCDF_TKE_925mb, NETCDF_UGRD_900mb, NETCDF_VGRD_900mb,
+    NETCDF_TKE_900mb, NETCDF_UGRD_875mb, NETCDF_VGRD_875mb, NETCDF_TKE_875mb, NETCDF_UGRD_850mb, NETCDF_VGRD_850mb, NETCDF_TKE_850mb, NETCDF_UGRD_825mb,
+    NETCDF_VGRD_825mb, NETCDF_TKE_825mb, NETCDF_UGRD_800mb, NETCDF_VGRD_800mb, NETCDF_TKE_800mb, NETCDF_UGRD_775mb, NETCDF_VGRD_775mb,
+    NETCDF_TKE_775mb, NETCDF_UGRD_750mb, NETCDF_VGRD_750mb, NETCDF_TKE_750mb, NETCDF_UGRD_725mb, NETCDF_VGRD_725mb, NETCDF_TKE_725mb,
+    NETCDF_UGRD_700mb,  NETCDF_VGRD_700mb, NETCDF_TKE_700mb, NETCDF_Q975, NETCDF_Q950, NETCDF_Q925, NETCDF_Q900, NETCDF_Q875, NETCDF_Q850,
+    NETCDF_Q825, NETCDF_Q800, NETCDF_Q775,NETCDF_Q750, NETCDF_Q725, NETCDF_Q700, NETCDF_RH_975mb, NETCDF_RH_950mb, NETCDF_RH_925mb,NETCDF_RH_900mb, 
+    NETCDF_RH_875mb, NETCDF_RH_850mb, NETCDF_RH_825mb, NETCDF_RH_800mb, NETCDF_RH_775mb, NETCDF_RH_750mb, NETCDF_RH_725mb, NETCDF_RH_700mb, 
+    NETCDF_DPT_2m, NETCDF_Q, NETCDF_RH_2m, NETCDF_LCLT, NETCDF_VIS, NETCDF_VVEL_975mb, NETCDF_VVEL_950mb, NETCDF_VVEL_925mb, NETCDF_VVEL_900mb, 
+    NETCDF_VVEL_875mb, NETCDF_VVEL_850mb, NETCDF_VVEL_825mb, NETCDF_VVEL_800mb, NETCDF_VVEL_775mb, NETCDF_VVEL_750mb, NETCDF_VVEL_725mb, NETCDF_VVEL_700mb],
+
+
+    'Five_Top': [NETCDF_VVEL_750mb, NETCDF_VVEL_925mb, NETCDF_VIS, NETCDF_VGRD_775mb, NETCDF_TMP_2m],
+    'Five_Top_2': [NETCDF_VVEL_925mb, NETCDF_TMP_2m, NETCDF_VGRD_775mb, NETCDF_VIS, NETCDF_VVEL_750mb],
+
+    'Physical_G1':[NETCDF_FRICV, NETCDF_UGRD_10m, NETCDF_UGRD_975mb, NETCDF_UGRD_950mb, NETCDF_UGRD_925mb, NETCDF_UGRD_900mb,
+    NETCDF_UGRD_875mb, NETCDF_UGRD_850mb, NETCDF_UGRD_825mb, NETCDF_UGRD_800mb, NETCDF_UGRD_775mb,  NETCDF_UGRD_750mb,
+    NETCDF_UGRD_725mb, NETCDF_UGRD_700mb, NETCDF_VGRD_10m, NETCDF_VGRD_975mb, NETCDF_VGRD_950mb, NETCDF_VGRD_925mb,
+    NETCDF_VGRD_900mb, NETCDF_VGRD_875mb, NETCDF_VGRD_850mb, NETCDF_VGRD_825mb, NETCDF_VGRD_800mb, NETCDF_VGRD_775mb, NETCDF_VGRD_750mb,
+    NETCDF_VGRD_725mb, NETCDF_VGRD_700mb],
+    'Physical_G2':[NETCDF_TKE_975mb, NETCDF_TKE_950mb, NETCDF_TKE_925mb, NETCDF_TKE_900mb, NETCDF_TKE_875mb, NETCDF_TKE_850mb, NETCDF_TKE_825mb,
+    NETCDF_TKE_800mb, NETCDF_TKE_775mb, NETCDF_TKE_750mb, NETCDF_TKE_725mb, NETCDF_TKE_700mb, NETCDF_Q975, NETCDF_Q950, NETCDF_Q925, NETCDF_Q900,
+    NETCDF_Q875, NETCDF_Q850, NETCDF_Q825, NETCDF_Q800, NETCDF_Q775,NETCDF_Q750, NETCDF_Q725, NETCDF_Q700],
+    'Physical_G3':[NETCDF_TMP_2m, NETCDF_TMP_975mb, NETCDF_TMP_950mb, NETCDF_TMP_925mb, NETCDF_TMP_900mb, NETCDF_TMP_875mb, NETCDF_TMP_850mb,
+    NETCDF_TMP_825mb, NETCDF_TMP_800mb, NETCDF_TMP_775mb, NETCDF_TMP_750mb, NETCDF_TMP_725mb, NETCDF_TMP_700mb, NETCDF_DPT_2m, NETCDF_RH_2m,
+    NETCDF_RH_975mb, NETCDF_RH_950mb, NETCDF_RH_925mb,NETCDF_RH_900mb, NETCDF_RH_875mb, NETCDF_RH_850mb, NETCDF_RH_825mb, NETCDF_RH_800mb,
+    NETCDF_RH_775mb, NETCDF_RH_750mb, NETCDF_RH_725mb, NETCDF_RH_700mb],
+    'Physical_G4':[NETCDF_Q, NETCDF_LCLT, NETCDF_VIS, NETCDF_VVEL_975mb, NETCDF_VVEL_950mb, NETCDF_VVEL_925mb, NETCDF_VVEL_900mb, NETCDF_VVEL_875mb, NETCDF_VVEL_850mb, NETCDF_VVEL_825mb,
+    NETCDF_VVEL_800mb, NETCDF_VVEL_775mb, NETCDF_VVEL_750mb, NETCDF_VVEL_725mb, NETCDF_VVEL_700mb], 
+    'Mixed':[NETCDF_SST, NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST], 
+    'MUR': [NETCDF_SST], 
+    'Generated': [NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST], 
+    'TMP': [NETCDF_TMP_SFC, NETCDF_TMP_2m, NETCDF_DPT_2m]
+    }
+NETCDF_MUR_NAMES   = [NETCDF_SST]
+NETCDF_TMP_NAMES   = [NETCDF_TMP_SFC, NETCDF_TMP_2m, NETCDF_DPT_2m]
+NETCDF_MIXED_NAMES = [NETCDF_SST, NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST]
+NETCDF_GEN_NAMES   = [NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST]

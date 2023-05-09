@@ -397,7 +397,7 @@ class Factorized_Transformer(nn.Module):
 
         Emb_M = config.transformer["Emb_M"]
 
-        if Emb_M   == 'Emb_2D_Patch':
+        if Emb_M   == 'Emb_2D_Patch_Fact':
             self.spatial_embeddings = Spatial_Embeddings_2D_Patch(config, img_size=img_size)
 
         elif Emb_M == 'Emb_2D_Channel':
@@ -411,9 +411,10 @@ class Factorized_Transformer(nn.Module):
 
     def forward(self, x):
         timeseries_feature_maps, timeseries_spatial_encoded, timeseries_attn_weights = [], [], []
-
+        x  = x.permute(0, 4, 2, 3, 1)
         for time in range(x.shape[-1]):
             spatial_embedding_output               = self.spatial_embeddings(x[:, :, :, :, time])
+
             spatial_encoded, spatial_attn_weights  = self.encoder(spatial_embedding_output)
             timeseries_spatial_encoded.append(spatial_encoded)
             timeseries_attn_weights.append(spatial_attn_weights)
@@ -437,14 +438,14 @@ class Factorized_VisionTransformer(nn.Module):
         self.classifier  = config.classifier
 
         self.transformer = Factorized_Transformer(config, img_size, vis)
-        self.mlp         = Mlp_ViT(config)
+        #self.mlp         = Mlp_ViT(config)
         self.head        = Linear(config.embd_size, num_classes)
         self.softmax     = nn.LogSoftmax(dim=1)
 
     def forward(self, x):
         x_t, attn_weights_t, x_s, attn_weights_s = self.transformer(x)
-        mlp_out = self.mlp(x_t[:, 0])
-        logits = self.head(mlp_out)
+        #mlp_out = self.mlp(x_t[:, 0])
+        logits = self.head(x_t[:, 0])
         pred   = self.softmax(logits)
 
         return [attn_weights_t, attn_weights_s], pred 
