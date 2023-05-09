@@ -7,31 +7,18 @@ from src import SparkMET as sm
 
 
 # Exp_Name: embeddingtype_lr_wd_batch_size_nheads_nlayers
-Exp_name = '4D_Emb2DPatch_Fact_0001_01_32_8_6'
-SaveDir  = '/data1/fog/SparkMET/EXPs/'
+Exp_name = '4D_Emb2DPatch_aws_0001_01_32_8_6'
+SaveDir  = '/home/ubuntu/EXPs/'
 
 #****************************************************************************************************#
 #********************************************** DATA CONFIGS ****************************************#
 #****************************************************************************************************#
 
-FogDataConfigs = fog.FogData_Configs(input_path      = None, 
-                                     target_path     = None, 
-                                     start_date      = fog.year_information['2009'][0], 
-                                     finish_date     = fog.year_information['2020'][1], 
-                                     data_split_dict = fog.data_split_dict_[0], 
-                                     data_straucture = '4D',
-                                     lead_time_pred  = 24, 
-                                     vis_threshold   = 1, 
-                                     points_coords   = fog.NAM_coords,  
-                                     predictor_names = fog.NETCDF_PREDICTOR_NAMES['All']).return_config()
-
-
-data_loader_training, data_loader_validate, data_loader_testing = fog.Fog_DataLoader(FogDataConfigs,
-                                                                                     batch_size = 32, 
+data_loader_training, data_loader_validate, data_loader_testing = fog.Fog_DataLoader_npz(batch_size = 32, 
                                                                                      WeightR    = False, 
                                                                                      SaveDir    = SaveDir, 
                                                                                      Exp_name   = Exp_name)
- 
+
 #****************************************************************************************************#
 #********************************************** Model CONFIGS ****************************************#
 #****************************************************************************************************#
@@ -55,14 +42,11 @@ model, optimizer, loss_func = SparkMET_Obj.compile(optmizer = 'adam',
                                                    lr = 0.0001, 
                                                    wd = 0.01)
  
-
-
 model, loss_stat = SparkMET_Obj.train(model, optimizer, loss_func, 
                                       data_loader_training, 
                                       data_loader_validate, 
                                       epochs = 30, 
                                       early_stop_tolerance = 30)
-
 
 list_outputs     = SparkMET_Obj.predict(model, data_loader_training, 
                                         data_loader_validate, 

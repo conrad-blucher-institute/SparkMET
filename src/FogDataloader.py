@@ -711,9 +711,99 @@ def Fog_DataLoader(data_config_dict, batch_size: int, WeightR: False, SaveDir: s
                                                         shuffle = False,  num_workers=0) 
 
     return data_loader_training, data_loader_validate, data_loader_testing
+
+
+
+
+
+class DataAdopterNpz(): 
+
+    def __init__(self, dataframe, npz):
+
+        self.dataframe  = dataframe
+        self.npz        = npz
+
+    def __len__(self):
+        return len(self.dataframe)
+
+    def __getitem__(self, idx): 
+
+        # reading the data date and cycletime: 
+
+        date_cycletime = self.dataframe.loc[idx]['date_cycletime']
         
 
+        sample = self.npz[date_cycletime]
 
+        # Matrix_dict[]
+        # timeseries_predictors_matrix   = Matrix_dict[date_cycletime]['input']
+        # #=============================================== reading the target visibility =======================================#
+
+        # onehotlabel = Matrix_dict[date_cycletime]['onehotlabel']
+        # date_time   = Matrix_dict[date_cycletime]['date_time']
+        # round_time  = Matrix_dict[date_cycletime]['round_time']
+        # visibility  = Matrix_dict[date_cycletime]['visibility']
+        # label       = Matrix_dict[date_cycletime]['label_class']
+
+        # #=============================================== return the sample =======================================#
+        # sample = {"input": timeseries_predictors_matrix, 
+        #                                 "onehotlabel":onehotlabel, 
+        #                                 "label_class": label, 
+        #                                 "date_time": date_time, 
+        #                                 "round_time": round_time, 
+        #                                 "date_cycletime": date_cycletime,  
+        #                                 "vis": visibility}
+
+        return sample    
+
+def Fog_DataLoader_npz(batch_size: int, WeightR: False, SaveDir: str, Exp_name: str):
+
+    save_dir = SaveDir + Exp_name
+    isExist  = os.path.isdir(save_dir)
+
+    # creating all the save directories: 
+    if not isExist:
+        os.mkdir(save_dir)
+
+    train_df = pd.read_csv('/home/ubuntu/FogData/train.csv')
+    valid_df = pd.read_csv('/home/ubuntu/FogData/valid.csv')
+    test_df  = pd.read_csv('/home/ubuntu/FogData/test.csv')
+
+    train_df = pd.read_csv('/home/ubuntu/FogData/train.csv')
+    valid_df = pd.read_csv('/home/ubuntu/FogData/valid.csv')
+    test_df  = pd.read_csv('/home/ubuntu/FogData/test.csv')
+
+
+    _ = print_report(train_df, valid_df, test_df)
+
+    train_dict = load('/home/ubuntu/FogData/train_24.npz')['arr_0']
+    valid_dict = load('/home/ubuntu/FogData/valid_24.npz')['arr_0']
+    test_dict  = load('/home/ubuntu/FogData/test_24.npz')['arr_0']
+
+
+    train_dataset = DataAdopterNpz(train_df, train_dict)
+    valid_dataset = DataAdopterNpz(valid_df, valid_dict)
+    test_dataset  = DataAdopterNpz(test_df, test_dict)
+
+
+    if WeightR is True: 
+        train_sampler, valid_sampler, test_sampler = return_weight_sampler(train_df, valid_df, test_df)
+
+        data_loader_training = torch.utils.data.DataLoader(train_dataset, batch_size= batch_size, 
+                                                        shuffle = False,  sampler=train_sampler, num_workers=0)  # 
+        data_loader_validate = torch.utils.data.DataLoader(valid_dataset, batch_size= batch_size, 
+                                                        shuffle = False, sampler=valid_sampler, num_workers=0)  # 
+        data_loader_testing  = torch.utils.data.DataLoader(test_dataset, batch_size= batch_size, 
+                                                        shuffle = False, sampler=test_sampler, num_workers=0) # 
+    else: 
+        data_loader_training = torch.utils.data.DataLoader(train_dataset, batch_size= batch_size, 
+                                                        shuffle = True,  num_workers=0) 
+        data_loader_validate = torch.utils.data.DataLoader(valid_dataset, batch_size= batch_size, 
+                                                        shuffle = False, num_workers=0) 
+        data_loader_testing  = torch.utils.data.DataLoader(test_dataset, batch_size= batch_size, 
+                                                        shuffle = False,  num_workers=0) 
+
+    return data_loader_training, data_loader_validate, data_loader_testing
 
 #****************************************************************************************************#
 #************************************ DATA SOURCE GENERATOR  ****************************************#
