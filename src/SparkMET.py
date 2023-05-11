@@ -112,7 +112,7 @@ class SparkMET():
 
     def compile(self, optmizer: str, loss: str, lr: float, wd:float, ):
 
-        self.model = models.VisionTransformer(self.SparkMET_Configs, img_size = 32, num_classes=2,).to(device)
+        self.model = models.Factorized_VisionTransformer(self.SparkMET_Configs, img_size = 32, num_classes=2,).to(device)
 
         if optmizer == 'adam':
             self.optimizer = optim.Adam(self.model.parameters(), 

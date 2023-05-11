@@ -43,7 +43,7 @@ SparkMET_Config = sm.SparkMET_Configs(img_size   = 32,
                                       embd_size  = 1024, 
                                       num_heads  = 8, 
                                       num_layers = 6, 
-                                      FactType   = 'Emb_2D_Patch').return_config()
+                                      FactType   = 'Emb_2D_Patch_Fact').return_config()
 
 SparkMET_Obj    = sm.SparkMET(SparkMET_Config, 
                            SaveDir = SaveDir, 

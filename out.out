@@ -5,66 +5,9 @@ number of training samples:   5460 | number of training fog cases:   103
 number of validation samples: 2332 | number of validation fog cases: 31
 number of test samples:       2228 | number of test fog cases:       67
 #======================================================================#
-Epoch 001: | Train Loss: 0.0855 | Val Loss: 0.0709 | Time(s): 2922.300
-Best model Saved! Val Loss: 0.0709
-count: 0
-Epoch 002: | Train Loss: 0.0644 | Val Loss: 0.1139 | Time(s): 3029.303
-Model is not saved! Current Val Loss: 0.1139
-count: 1
-Epoch 003: | Train Loss: 0.0679 | Val Loss: 0.1334 | Time(s): 3025.282
-Model is not saved! Current Val Loss: 0.1334
-count: 2
-Epoch 004: | Train Loss: 0.0678 | Val Loss: 0.0967 | Time(s): 3011.618
-Model is not saved! Current Val Loss: 0.0967
-count: 3
-Epoch 005: | Train Loss: 0.0762 | Val Loss: 0.0690 | Time(s): 2906.169
-Best model Saved! Val Loss: 0.0690
-count: 0
-Epoch 006: | Train Loss: 0.0783 | Val Loss: 0.0804 | Time(s): 2901.025
-Model is not saved! Current Val Loss: 0.0804
-count: 1
-Epoch 007: | Train Loss: 0.0670 | Val Loss: 0.0668 | Time(s): 2897.515
-Best model Saved! Val Loss: 0.0668
-count: 0
-Epoch 008: | Train Loss: 0.0693 | Val Loss: 0.0777 | Time(s): 2898.580
-Model is not saved! Current Val Loss: 0.0777
-count: 1
-Epoch 009: | Train Loss: 0.0640 | Val Loss: 0.1009 | Time(s): 2894.374
-Model is not saved! Current Val Loss: 0.1009
-count: 2
-Epoch 010: | Train Loss: 0.0662 | Val Loss: 0.0936 | Time(s): 2970.027
-Model is not saved! Current Val Loss: 0.0936
-count: 3
-Epoch 011: | Train Loss: 0.0665 | Val Loss: 0.0494 | Time(s): 2988.706
-Best model Saved! Val Loss: 0.0494
-count: 0
-Epoch 012: | Train Loss: 0.0855 | Val Loss: 0.0965 | Time(s): 2960.751
-Model is not saved! Current Val Loss: 0.0965
-count: 1
-Epoch 013: | Train Loss: 0.0681 | Val Loss: 0.0606 | Time(s): 2964.972
-Model is not saved! Current Val Loss: 0.0606
-count: 2
-Epoch 014: | Train Loss: 0.0648 | Val Loss: 0.0899 | Time(s): 3112.103
-Model is not saved! Current Val Loss: 0.0899
-count: 3
-Epoch 015: | Train Loss: 0.0610 | Val Loss: 0.0521 | Time(s): 2957.983
-Model is not saved! Current Val Loss: 0.0521
-count: 4
-Epoch 016: | Train Loss: 0.0617 | Val Loss: 0.0665 | Time(s): 3003.844
-Model is not saved! Current Val Loss: 0.0665
-count: 5
-Epoch 017: | Train Loss: 0.0621 | Val Loss: 0.0577 | Time(s): 3026.584
-Model is not saved! Current Val Loss: 0.0577
-count: 6
-Epoch 018: | Train Loss: 0.0619 | Val Loss: 0.0511 | Time(s): 2901.803
-Model is not saved! Current Val Loss: 0.0511
-count: 7
-Epoch 019: | Train Loss: 0.0618 | Val Loss: 0.0793 | Time(s): 2898.665
-Model is not saved! Current Val Loss: 0.0793
-count: 8
-Epoch 020: | Train Loss: 0.0583 | Val Loss: 0.0701 | Time(s): 2898.031
-Model is not saved! Current Val Loss: 0.0701
-count: 9
-Epoch 021: | Train Loss: 0.0587 | Val Loss: 0.0523 | Time(s): 2903.644
-Model is not saved! Current Val Loss: 0.0523
-count: 10
+/data1/fog/SparkMET/src/engine.py:379: RuntimeWarning: invalid value encountered in long_scalars
+  FAR   = FA/(Hit+FA)
+/data1/fog/SparkMET/src/engine.py:383: RuntimeWarning: invalid value encountered in long_scalars
+  ORSS  = ((Hit*CR)-(FA*miss))/((Hit*CR)+(FA*miss))
+/data1/fog/SparkMET/src/engine.py:384: RuntimeWarning: invalid value encountered in long_scalars
+  CSS   = ((Hit*CR)-(FA*miss))/((Hit+FA)*(miss+CR))

@@ -350,62 +350,48 @@ class Encoder_ViT(nn.Module):
 
         return encoded, attn_weights
 
-class Transformer_ViT(nn.Module):
+class Transformer_Emb_Patch(nn.Module):
     def __init__(self, config, img_size, vis):
-        super(Transformer_ViT, self).__init__()
-        Emb_M = config.transformer["Emb_M"]
-        if Emb_M   == 'Emb_2D_Patch':
-            self.embeddings = Embeddings_2D_Patch(config, img_size=img_size)
-            self.encoder    = Encoder_ViT(config, vis)
+        super(Transformer_Emb_Patch, self).__init__()
 
-        elif Emb_M == 'Emb_2D_Channel':
-            self.embeddings = Embeddings_2D_Channel(config, img_size=img_size)
-            self.encoder    = Encoder_ViT(config, vis)
-
-        elif Emb_M == 'Emb_2D_SP_Patch':
-            self.embeddings = Embeddings_2D_SpatioTemporal_Patch(config, img_size=img_size)
-            self.encoder    = Encoder_ViT(config, vis)
-
-
+        self.embeddings = Embeddings_2D_Patch(config, img_size=img_size)
+        self.encoder    = Encoder_ViT(config, vis)
     def forward(self, input_ids):
         embedding_output      = self.embeddings(input_ids)
         encoded, attn_weights = self.encoder(embedding_output)
         return encoded, attn_weights
 
-class VisionTransformer(nn.Module):
-    def __init__(self, config, img_size = 32, num_classes = 2, zero_head = False, vis = True):
-        super(VisionTransformer, self).__init__()
-        self.num_classes = num_classes
-        self.zero_head   = zero_head
-        self.classifier  = config.classifier
-
-        self.transformer = Transformer_ViT(config, img_size, vis)
-        self.head        = Linear(config.embd_size, num_classes)
-        self.softmax     = nn.LogSoftmax(dim=1)
-
-    def forward(self, x):
-
-        x, attn_weights = self.transformer(x)
-        logits = self.head(x[:, 0])
-        pred   = self.softmax(logits)
-
-        return attn_weights, pred 
-
-class Factorized_Transformer(nn.Module):
+class Transformer_Emb_Channel(nn.Module): 
     def __init__(self, config, img_size, vis):
-        super(Factorized_Transformer, self).__init__()
+        super(Transformer_Emb_Channel, self).__init__()
 
-        Emb_M = config.transformer["Emb_M"]
+        self.embeddings = Embeddings_2D_Channel(config, img_size=img_size)
+        self.encoder    = Encoder_ViT(config, vis)
 
-        if Emb_M   == 'Emb_2D_Patch_Fact':
-            self.spatial_embeddings = Spatial_Embeddings_2D_Patch(config, img_size=img_size)
+    def forward(self, input_ids):
+        embedding_output      = self.embeddings(input_ids)
+        encoded, attn_weights = self.encoder(embedding_output)
+        return encoded, attn_weights
+    
+class Transformer_Emb_SP(nn.Module):  
+    def __init__(self, config, img_size, vis):
+        super(Transformer_Emb_SP, self).__init__()
 
-        elif Emb_M == 'Emb_2D_Channel':
-            self.spatial_embeddings = Embeddings_2D_Channel(config, img_size=img_size)
+        self.embeddings = Embeddings_2D_SpatioTemporal_Patch(config, img_size=img_size)
+        self.encoder    = Encoder_ViT(config, vis)
 
+    def forward(self, input_ids):
+        embedding_output      = self.embeddings(input_ids)
+        encoded, attn_weights = self.encoder(embedding_output)
+        return encoded, attn_weights  
+    
+class Transformer_Emb_Patch_Fact(nn.Module):
+    def __init__(self, config, img_size, vis):
+        super(Transformer_Emb_Patch_Fact, self).__init__()
+
+
+        self.spatial_embeddings = Spatial_Embeddings_2D_Patch(config, img_size=img_size)
         self.temporal_embeddings    = Temporal_Embeddings_2D_Patch(config, img_size=img_size)
-        #self.GAP                    = nn.AvgPool2d(11)
-
         self.encoder        = Encoder_ViT(config, vis)
 
 
@@ -428,7 +414,37 @@ class Factorized_Transformer(nn.Module):
 
         temporal_encoded, temporal_attn_weights = self.encoder(temporal_embedding_output)
 
-        return temporal_encoded, temporal_attn_weights, timeseries_spatial_encoded, timeseries_attn_weights
+        return temporal_encoded, [temporal_attn_weights, timeseries_spatial_encoded, timeseries_attn_weights]
+    
+class Transformer_Emb_Channel_Fact(nn.Module):
+    def __init__(self, config, img_size, vis):
+        super(Transformer_Emb_Channel_Fact, self).__init__()
+
+
+        self.spatial_embeddings  = Embeddings_2D_Channel(config, img_size=img_size)
+        self.temporal_embeddings = Temporal_Embeddings_2D_Patch(config, img_size=img_size)
+        self.encoder             = Encoder_ViT(config, vis)
+
+    def forward(self, x):
+        timeseries_feature_maps, timeseries_spatial_encoded, timeseries_attn_weights = [], [], []
+        x  = x.permute(0, 4, 2, 3, 1)
+        for time in range(x.shape[-1]):
+            spatial_embedding_output               = self.spatial_embeddings(x[:, :, :, :, time])
+
+            spatial_encoded, spatial_attn_weights  = self.encoder(spatial_embedding_output)
+            timeseries_spatial_encoded.append(spatial_encoded)
+            timeseries_attn_weights.append(spatial_attn_weights)
+
+            globalaveragepooling        = torch.mean(spatial_encoded, dim = 1)
+            globalaveragepooling = torch.unsqueeze(globalaveragepooling, dim =1)
+            timeseries_feature_maps.append(globalaveragepooling)
+
+        timeseries_feature_maps = torch.cat(timeseries_feature_maps, dim = 1)
+        temporal_embedding_output = self.temporal_embeddings(timeseries_feature_maps)
+
+        temporal_encoded, temporal_attn_weights = self.encoder(temporal_embedding_output)
+
+        return temporal_encoded, [temporal_attn_weights, timeseries_spatial_encoded, timeseries_attn_weights]
 
 class Factorized_VisionTransformer(nn.Module):
     def __init__(self, config, img_size = 32, num_classes = 2, zero_head = False, vis = True):
@@ -437,18 +453,139 @@ class Factorized_VisionTransformer(nn.Module):
         self.zero_head   = zero_head
         self.classifier  = config.classifier
 
-        self.transformer = Factorized_Transformer(config, img_size, vis)
-        #self.mlp         = Mlp_ViT(config)
+
+        Emb_M = config.transformer["Emb_M"]
+
+        if Emb_M   == 'Emb_2D_Patch':
+            self.transformer = Transformer_Emb_Patch(config, img_size, vis)
+        elif Emb_M == 'Emb_2D_Channel':
+            self.transformer = Transformer_Emb_Channel(config, img_size, vis)
+        elif Emb_M == 'Emb_2D_SP_Patch':
+            self.transformer = Transformer_Emb_SP(config, img_size, vis)
+        elif Emb_M == 'Emb_2D_Patch_Fact':
+            self.transformer = Transformer_Emb_Patch_Fact(config, img_size, vis)
+        elif Emb_M == 'Emb_2D_Channel_Fact':
+            self.transformer = Transformer_Emb_Channel_Fact(config, img_size, vis)
+
         self.head        = Linear(config.embd_size, num_classes)
         self.softmax     = nn.LogSoftmax(dim=1)
 
     def forward(self, x):
-        x_t, attn_weights_t, x_s, attn_weights_s = self.transformer(x)
+        x, weights = self.transformer(x)
         #mlp_out = self.mlp(x_t[:, 0])
-        logits = self.head(x_t[:, 0])
+        logits = self.head(x[:, 0])
         pred   = self.softmax(logits)
 
-        return [attn_weights_t, attn_weights_s], pred 
+        return weights, pred 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# class VisionTransformer(nn.Module):
+#     def __init__(self, config, img_size = 32, num_classes = 2, zero_head = False, vis = True):
+#         super(VisionTransformer, self).__init__()
+#         self.num_classes = num_classes
+#         self.zero_head   = zero_head
+#         self.classifier  = config.classifier
+
+#         self.transformer = Transformer_ViT(config, img_size, vis)
+
+
+#         self.head        = Linear(config.embd_size, num_classes)
+#         self.softmax     = nn.LogSoftmax(dim=1)
+
+#     def forward(self, x):
+
+#         x, attn_weights = self.transformer(x)
+#         logits = self.head(x[:, 0])
+#         pred   = self.softmax(logits)
+
+#         return attn_weights, pred 
+
+# class Transformer_ViT(nn.Module):
+#     def __init__(self, config, img_size, vis):
+#         super(Transformer_ViT, self).__init__()
+#         Emb_M = config.transformer["Emb_M"]
+#         if Emb_M   == 'Emb_2D_Patch':
+#             self.embeddings = Embeddings_2D_Patch(config, img_size=img_size)
+#             self.encoder    = Encoder_ViT(config, vis)
+
+#         elif Emb_M == 'Emb_2D_Channel':
+#             self.embeddings = Embeddings_2D_Channel(config, img_size=img_size)
+#             self.encoder    = Encoder_ViT(config, vis)
+
+#         elif Emb_M == 'Emb_2D_SP_Patch':
+#             self.embeddings = Embeddings_2D_SpatioTemporal_Patch(config, img_size=img_size)
+#             self.encoder    = Encoder_ViT(config, vis)
+
+
+#     def forward(self, input_ids):
+#         embedding_output      = self.embeddings(input_ids)
+#         encoded, attn_weights = self.encoder(embedding_output)
+#         return encoded, attn_weights
+
+
+# class Factorized_Transformer(nn.Module):
+#     def __init__(self, config, img_size, vis):
+#         super(Factorized_Transformer, self).__init__()
+
+#         Emb_M = config.transformer["Emb_M"]
+
+#         if Emb_M   == 'Emb_2D_Patch_Fact':
+#             self.spatial_embeddings = Spatial_Embeddings_2D_Patch(config, img_size=img_size)
+
+#         elif Emb_M == 'Emb_2D_Channel':
+#             self.spatial_embeddings = Embeddings_2D_Channel(config, img_size=img_size)
+
+#         self.temporal_embeddings    = Temporal_Embeddings_2D_Patch(config, img_size=img_size)
+#         #self.GAP                    = nn.AvgPool2d(11)
+
+#         self.encoder        = Encoder_ViT(config, vis)
+
+
+#     def forward(self, x):
+#         timeseries_feature_maps, timeseries_spatial_encoded, timeseries_attn_weights = [], [], []
+#         x  = x.permute(0, 4, 2, 3, 1)
+#         for time in range(x.shape[-1]):
+#             spatial_embedding_output               = self.spatial_embeddings(x[:, :, :, :, time])
+
+#             spatial_encoded, spatial_attn_weights  = self.encoder(spatial_embedding_output)
+#             timeseries_spatial_encoded.append(spatial_encoded)
+#             timeseries_attn_weights.append(spatial_attn_weights)
+
+#             globalaveragepooling        = torch.mean(spatial_encoded, dim = 1)
+#             globalaveragepooling = torch.unsqueeze(globalaveragepooling, dim =1)
+#             timeseries_feature_maps.append(globalaveragepooling)
+
+#         timeseries_feature_maps = torch.cat(timeseries_feature_maps, dim = 1)
+#         temporal_embedding_output = self.temporal_embeddings(timeseries_feature_maps)
+
+#         temporal_encoded, temporal_attn_weights = self.encoder(temporal_embedding_output)
+
+#         return temporal_encoded, temporal_attn_weights, timeseries_spatial_encoded, timeseries_attn_weights

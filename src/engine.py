@@ -65,17 +65,17 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             train_nonfog_preds.append(train_out[:, 0])
 
             # Attention scores: 
-            layer_attention_outputs = None
-            for layer_output in train_attention_scores:
-                layer_output = np.expand_dims(layer_output.detach().cpu().numpy(), axis  = -1)
-                layer_output = layer_output[:, :, 1:, 1:, :]
-                if layer_attention_outputs is None: 
-                    layer_attention_outputs = layer_output
-                else: 
-                    layer_attention_outputs = np.concatenate((layer_attention_outputs, layer_output), axis = -1)
-            train_attention_outputs.append(layer_attention_outputs) 
+        #     layer_attention_outputs = None
+        #     for layer_output in train_attention_scores[1]:
+        #         layer_output = np.expand_dims(layer_output.detach().cpu().numpy(), axis  = -1)
+        #         layer_output = layer_output[:, :, 1:, 1:, :]
+        #         if layer_attention_outputs is None: 
+        #             layer_attention_outputs = layer_output
+        #         else: 
+        #             layer_attention_outputs = np.concatenate((layer_attention_outputs, layer_output), axis = -1)
+        #     train_attention_outputs.append(layer_attention_outputs) 
             
-        train_attention_outputs  = np.concatenate(train_attention_outputs, axis = 0)
+        # train_attention_outputs  = np.concatenate(train_attention_outputs, axis = 0)
 
         train_date_times   = np.concatenate(train_date_times)
         train_round_times  = np.concatenate(train_round_times)
@@ -133,18 +133,18 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             valid_nonfog_preds.append(pred_val[:, 0])
 
             # Attention scores: 
-            layer_attention_outputs_v = None
-            for layer_output_v in valid_attention_scores:
-                layer_output_v = np.expand_dims(layer_output_v.detach().cpu().numpy(), axis  = -1)
-                layer_output_v = layer_output_v[:, :, 1:, 1:, :]
-                if layer_attention_outputs_v is None: 
-                    layer_attention_outputs_v = layer_output_v
-                else: 
-                    layer_attention_outputs_v = np.concatenate((layer_attention_outputs_v, layer_output_v), axis = -1)
+        #     layer_attention_outputs_v = None
+        #     for layer_output_v in valid_attention_scores[1]:
+        #         layer_output_v = np.expand_dims(layer_output_v.detach().cpu().numpy(), axis  = -1)
+        #         layer_output_v = layer_output_v[:, :, 1:, 1:, :]
+        #         if layer_attention_outputs_v is None: 
+        #             layer_attention_outputs_v = layer_output_v
+        #         else: 
+        #             layer_attention_outputs_v = np.concatenate((layer_attention_outputs_v, layer_output_v), axis = -1)
 
-            valid_attention_outputs.append(layer_attention_outputs_v)   
+        #     valid_attention_outputs.append(layer_attention_outputs_v)   
 
-        valid_attention_outputs  = np.concatenate(valid_attention_outputs, axis = 0)
+        # valid_attention_outputs  = np.concatenate(valid_attention_outputs, axis = 0)
 
         valid_date_times   = np.concatenate(valid_date_times)
         valid_round_times  = np.concatenate(valid_round_times)
@@ -202,18 +202,18 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
             test_nonfog_preds.append(pred_test[:, 0])
 
             # Attention scores: 
-            layer_attention_outputs_test = None
-            for layer_output_test in test_attention_scores:
-                layer_output_test = np.expand_dims(layer_output_test.detach().cpu().numpy(), axis  = -1)
-                layer_output_test = layer_output_test[:, :, 1:, 1:, :]
-                if layer_attention_outputs_test is None: 
-                    layer_attention_outputs_test = layer_output_test
-                else: 
-                    layer_attention_outputs_test = np.concatenate((layer_attention_outputs_test, layer_output_test), axis = -1)
+            # layer_attention_outputs_test = None
+            # for layer_output_test in test_attention_scores[1]:
+            #     layer_output_test = np.expand_dims(layer_output_test.detach().cpu().numpy(), axis  = -1)
+            #     layer_output_test = layer_output_test[:, :, 1:, 1:, :]
+            #     if layer_attention_outputs_test is None: 
+            #         layer_attention_outputs_test = layer_output_test
+            #     else: 
+            #         layer_attention_outputs_test = np.concatenate((layer_attention_outputs_test, layer_output_test), axis = -1)
 
-            test_attention_outputs.append(layer_attention_outputs_test)    
+            # test_attention_outputs.append(layer_attention_outputs_test)    
 
-        test_attention_outputs = np.concatenate(test_attention_outputs, axis = 0)
+        #test_attention_outputs = np.concatenate(test_attention_outputs, axis = 0)
 
 
         test_date_times   = np.concatenate(test_date_times)
@@ -244,10 +244,9 @@ def predict(model, data_loader_training, data_loader_validate, data_loader_testi
         _ = test_eval_obj.ruc_curve_plot()
 
     predictions = [train_output, valid_output, test_output]
-    raw_attention_scores = [train_attention_outputs, valid_attention_outputs, test_attention_outputs]
+    #raw_attention_scores = [train_attention_outputs, valid_attention_outputs, test_attention_outputs]
 
-
-    return predictions, raw_attention_scores
+    return predictions, #raw_attention_scores
 
 def train(model, optimizer, loss_func, data_loader_training, data_loader_validate, 
           epochs=100, early_stop_tolerance= 50, SaveDir = None, Exp_name = None):
