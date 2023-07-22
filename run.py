@@ -7,13 +7,12 @@ from src import SparkMET as sm
 
 
 # Exp_Name: embeddingtype_lr_wd_batch_size_nheads_nlayers
-Exp_name = '4D_Emb2DPatch_Fact_0001_01_32_8_6'
+Exp_name = '4D_Emb_2D_SP_Patch_0001_01_32_8_6_flash'
 SaveDir  = '/data1/fog/SparkMET/EXPs/'
 
 #****************************************************************************************************#
 #********************************************** DATA CONFIGS ****************************************#
 #****************************************************************************************************#
-
 FogDataConfigs = fog.FogData_Configs(input_path      = None, 
                                      target_path     = None, 
                                      start_date      = fog.year_information['2009'][0], 
@@ -31,19 +30,20 @@ data_loader_training, data_loader_validate, data_loader_testing = fog.Fog_DataLo
                                                                                      WeightR    = False, 
                                                                                      SaveDir    = SaveDir, 
                                                                                      Exp_name   = Exp_name)
- 
+
+
 #****************************************************************************************************#
 #********************************************** Model CONFIGS ****************************************#
 #****************************************************************************************************#
 
-# Emb_2D_SP_Patch, Emb_2D_Patch, Emb_2D_Channel
+# # Emb_2D_SP_Patch, Emb_2D_Patch, Emb_2D_Channel
 SparkMET_Config = sm.SparkMET_Configs(img_size   = 32, 
                                       in_channel = 388, 
                                       in_time    = 4, 
                                       embd_size  = 1024, 
                                       num_heads  = 8, 
                                       num_layers = 6, 
-                                      FactType   = 'Emb_2D_Patch_Fact').return_config()
+                                      FactType   = 'Emb_2D_SP_Patch').return_config()
 
 SparkMET_Obj    = sm.SparkMET(SparkMET_Config, 
                            SaveDir = SaveDir, 
@@ -55,7 +55,6 @@ model, optimizer, loss_func = SparkMET_Obj.compile(optmizer = 'adam',
                                                    lr = 0.0001, 
                                                    wd = 0.01)
  
-
 
 model, loss_stat = SparkMET_Obj.train(model, optimizer, loss_func, 
                                       data_loader_training, 

@@ -1,13 +1,14 @@
 nohup: ignoring input
-Check if there is GPU(s): True
-#================================ Summary of Dataset ==================#
-number of training samples:   5460 | number of training fog cases:   103
-number of validation samples: 2332 | number of validation fog cases: 31
-number of test samples:       2228 | number of test fog cases:       67
-#======================================================================#
-/data1/fog/SparkMET/src/engine.py:379: RuntimeWarning: invalid value encountered in long_scalars
-  FAR   = FA/(Hit+FA)
-/data1/fog/SparkMET/src/engine.py:383: RuntimeWarning: invalid value encountered in long_scalars
-  ORSS  = ((Hit*CR)-(FA*miss))/((Hit*CR)+(FA*miss))
-/data1/fog/SparkMET/src/engine.py:384: RuntimeWarning: invalid value encountered in long_scalars
-  CSS   = ((Hit*CR)-(FA*miss))/((Hit+FA)*(miss+CR))
+Traceback (most recent call last):
+  File "/data1/fog/SparkMET/run.py", line 1, in <module>
+    import torch
+  File "/home/hkamangir/anaconda3/envs/torch/lib/python3.11/site-packages/torch/__init__.py", line 228, in <module>
+    _load_global_deps()
+  File "/home/hkamangir/anaconda3/envs/torch/lib/python3.11/site-packages/torch/__init__.py", line 187, in _load_global_deps
+    raise err
+  File "/home/hkamangir/anaconda3/envs/torch/lib/python3.11/site-packages/torch/__init__.py", line 168, in _load_global_deps
+    ctypes.CDLL(lib_path, mode=ctypes.RTLD_GLOBAL)
+  File "/home/hkamangir/anaconda3/envs/torch/lib/python3.11/ctypes/__init__.py", line 376, in __init__
+    self._handle = _dlopen(self._name, mode)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: /home/hkamangir/anaconda3/envs/torch/lib/python3.11/site-packages/torch/lib/../../../../libmkl_core.so: invalid ELF header

@@ -7,6 +7,7 @@ from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time 
+#from torch.cuda.amp import autocast, GradScaler
 
 device ="cuda" if torch.cuda.is_available() else "cpu"
 
@@ -265,7 +266,7 @@ def train(model, optimizer, loss_func, data_loader_training, data_loader_validat
     #==============================================================================================================#
     #==============================================================================================================#
 
-    
+    #scaler = GradScaler()
     for epoch in range(1, epochs+1):
         
         training_start_time = time.time()
@@ -277,15 +278,20 @@ def train(model, optimizer, loss_func, data_loader_training, data_loader_validat
 
             input_train        = sample['input'].to(device) #.type(torch.LongTensor)
             train_label_true   = sample['label_class'].to(device)
- 
-            _ , train_out = model(input_train)
             optimizer.zero_grad()
+
+            #with torch.autocast(device_type = device, dtype = torch.float16):
+            _ , train_out = model(input_train)
+            
             train_loss  = loss_func(train_out, train_label_true) #
 
-            train_loss.backward()
-            optimizer.step()
-            step += 1
 
+            #scaler.scale(train_loss).backward()
+            train_loss.backward()
+            #scaler.step(optimizer) #
+            optimizer.step()
+            #scaler.update()
+            step += 1
             train_epoch_loss += train_loss.item()
 
         with torch.no_grad():
@@ -297,7 +303,7 @@ def train(model, optimizer, loss_func, data_loader_training, data_loader_validat
                 
                 input_val      = sample['input'].to(device) #.type(torch.LongTensor)
                 label_true_val = sample['label_class'].to(device)
-
+                #with torch.autocast(device_type = device, dtype = torch.float16):
                 _ , pred_val = model(input_val)
             
                 val_loss       = loss_func(pred_val, label_true_val)
