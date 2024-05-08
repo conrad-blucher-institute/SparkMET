@@ -21,21 +21,22 @@ SparkMET is a deep learning framework tailored for fog forecasting. It provides 
 - [To Do List](#to-do-list)
 
 ## Introduction
-[Provide a brief introduction to your project, explaining its purpose and significance. Detail the specific problem it solves or the functionality it provides.]
+
 
 ## ViT Models
 - Vanilla Vision Tokenization (VVT)
 - Uniform Variable Tokenization (UVT)
-- Spatio-Temporal Factorized Self-Attention (STFSA)
-- SparkMET
+- Spatial-Temporal Tokenization (STT)
+- Spatial-Variable Tokenization (SVT)
+- Physic-Informed Tokenization (PIT)
 
 ## Getting Started
 
 ### Prerequisites
-[List any necessary prerequisites and dependencies required before installing and running the project.]
+
 
 ### Installation
-[Provide step-by-step instructions on how to install and set up your project.]
+
 
 ## Usage
 
@@ -99,11 +100,9 @@ outputs = spark.predict(
 ```
 
 ## To Do List
-- [x] Update fog-dataloader for bigger area and different data format
-- [ ] merge our model to the multiview_vit module
+- [ ] Update fog-dataloader for bigger area and different data format
 - [ ] expand EDA for more visualization 
-- [ ] reliable diagram 
- 
+
 
 ```bash
 python run.py --exp_name test --embd_type VVT --batch_size 128 --embd_size 1024 --num_heads 8 --num_layers 8 --lr 0.001 --wd 0.01 --epochs 2
