@@ -57,7 +57,7 @@ sample = {
 ### Model Compilation, Training, and Testing
 Configure, compile, train, and test the model using the following example:
 
-from SparkMet import SparkMET, ModelConfig
+```from SparkMet import SparkMET, ModelConfig
 
 configs = ModelConfig(
     img_size=32,
@@ -96,7 +96,7 @@ outputs = spark.predict(
     data_loader_training,
     data_loader_testing
 )
-
+```
 
 ## To Do List
 - [x] Update fog-dataloader for bigger area and different data format
