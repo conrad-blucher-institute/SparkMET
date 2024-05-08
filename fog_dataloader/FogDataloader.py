@@ -4,8 +4,8 @@ import netCDF4
 import json
 import numpy as np
 import statistics as st 
-import scipy.ndimage
-import matplotlib.pyplot as plt
+# import scipy.ndimage
+# import matplotlib.pyplot as plt
 import pandas as pd
 seed = 1987
 torch.manual_seed(seed) # important 
@@ -31,7 +31,7 @@ year_information          = {'2009':['20090101', '20091231'],
 
 
 data_split_dict_ = {'train': ['2013', '2014', '2015', '2016', '2017'], 
-                    'valid': ['2009', '2010', '2011'], 
+                    'valid': ['2009', '2010', '2011', '2012'], 
                     'test': ['2018', '2019', '2020']},
 
 '''
@@ -346,8 +346,6 @@ class DataAdopter():
         #self.dataframe       = self.binarize_onehot_label_df()
         self.label_onehot_df = pd.get_dummies(self.dataframe.vis_category)
         
-        
-        
     def __len__(self):
         return len(self.dataframe)
 
@@ -365,15 +363,16 @@ class DataAdopter():
         timeseries_nam_predictor_matrix, timeseries_st_predictor_matrix, timeseries_mur_predictor_matrix = self.read_nc_nam_maps(nc_nam_timeseries_files_path_list, 
                                                                                                                                nc_mur_timeseries_files_path_list)
 
-
-        
-
+    
         timeseries_predictors_matrix = self.gen_combined_predictor(timeseries_nam_predictor_matrix, 
                                                                    timeseries_st_predictor_matrix, 
                                                                   timeseries_mur_predictor_matrix)
 
+        
+
 
         if self.map_structure == '1D': 
+            print(f"I am here: {timeseries_nam_predictor_matrix.shape}")
             timeseries_nam_predictor_matrix   = timeseries_nam_predictor_matrix.values#.flatten()
             #print(nam_timeseries_predictor_matrix.shape)
             #nam_timeseries_predictor_matrix   = nam_timeseries_predictor_matrix[:, :512]
@@ -600,11 +599,17 @@ class DataAdopter():
 
         return output 
         
-def cost_sensitive_weight_sampler(df):
-    class_counts = df.vis_class.value_counts()
-    class_weights = 1/class_counts
-    sample_weights = [1/class_counts[i] for i in df.vis_class.values]
-    return sample_weights
+
+def cost_sensitive_weight_sampler(df, class_column='vis_class'):
+    class_counts = df[class_column].value_counts()
+    class_weights = 1.0 / class_counts
+    sample_weights = df[class_column].map(class_weights)
+    
+    # Normalize the weights so that they sum to the number of samples
+    sample_weights /= sample_weights.sum()
+    sample_weights *= len(df)
+
+    return sample_weights.values
 
 def return_weight_sampler(train, val, test): 
 
@@ -715,10 +720,6 @@ def Fog_DataLoader(data_config_dict, batch_size: int, WeightR: False, SaveDir: s
 
     return data_loader_training, data_loader_validate, data_loader_testing
 
-
-
-
-
 class DataAdopterNpz(): 
 
     def __init__(self, dataframe, npz):
@@ -788,31 +789,98 @@ def Fog_DataLoader_npz(batch_size: int, WeightR: False, SaveDir: str, Exp_name: 
         train_sampler, valid_sampler, test_sampler = return_weight_sampler(train_df, valid_df, test_df)
 
         data_loader_training = torch.utils.data.DataLoader(train_dataset, batch_size= batch_size, 
+                                                        shuffle = False,  sampler=train_sampler, num_workers = 0)  # 
+        data_loader_validate = torch.utils.data.DataLoader(valid_dataset, batch_size= batch_size, 
+                                                        shuffle = False, sampler=valid_sampler, num_workers = 0)  # 
+        data_loader_testing  = torch.utils.data.DataLoader(test_dataset, batch_size= batch_size, 
+                                                        shuffle = False, num_workers = 0) # sampler=test_sampler, 
+    else: 
+        data_loader_training = torch.utils.data.DataLoader(train_dataset, batch_size= batch_size, 
+                                                        shuffle = True,  num_workers = 0) 
+        data_loader_validate = torch.utils.data.DataLoader(valid_dataset, batch_size= batch_size, 
+                                                        shuffle = False, num_workers = 0) 
+        data_loader_testing  = torch.utils.data.DataLoader(test_dataset, batch_size= batch_size, 
+                                                        shuffle = False,  num_workers = 0) 
+
+    return data_loader_training, data_loader_validate, data_loader_testing
+
+def Fog_DataLoader_npz_cv(batch_size: int, kfold_id : int, SaveDir: str, Exp_name: str, WeightR: False):
+
+    save_dir = SaveDir + Exp_name
+    isExist  = os.path.isdir(save_dir)
+
+    # creating all the save directories: 
+    if not isExist:
+        os.mkdir(save_dir)
+
+    train_df = pd.read_csv('/data1/fog/Dataset/train.csv')
+    valid_df = pd.read_csv('/data1/fog/Dataset/valid.csv')
+
+    train_all = pd.concat([valid_df, train_df], axis=0).reset_index(drop=True)
+    test_df  = pd.read_csv('/data1/fog/Dataset/test.csv')
+
+    train_dict = np.load('/data1/fog/Dataset/train_24.npz', allow_pickle = True)['arr_0'].tolist()
+    valid_dict = np.load('/data1/fog/Dataset/valid_24.npz', allow_pickle = True)['arr_0'].tolist()
+
+    valid_dict.update(train_dict)
+    test_dict  = np.load('/data1/fog/Dataset/test_24.npz', allow_pickle = True)['arr_0'].tolist()
+
+    cutoff_year = 2009 + kfold_id
+    cutoff_year_dict = str(2009 + kfold_id)
+
+    # version 1: 
+    # train_df_cv = train_all[train_all['year'] <= cutoff_year].reset_index(drop=True) 
+    # valid_df_cv = train_all[(train_all['year'] > cutoff_year) & (train_all['year'] <= cutoff_year + 1)].reset_index(drop=True) 
+
+    # print_report(train_df_cv, valid_df_cv, test_df)
+
+    # train_dict_cv = {k: v for k, v in valid_dict.items() if k[:4] <= cutoff_year_dict}
+    # valid_dict_cv = {k: v for k, v in valid_dict.items() if (k[:4] > cutoff_year_dict) & (k[:4] <= str(int(cutoff_year_dict) + 1))}
+
+    # version 2: 
+    train_df_cv = train_all[train_all['year'] != cutoff_year].reset_index(drop=True) 
+    valid_df_cv = train_all[(train_all['year'] == cutoff_year) ].reset_index(drop=True) 
+
+    print_report(train_df_cv, valid_df_cv, test_df)
+
+    train_dict_cv = {k: v for k, v in valid_dict.items() if k[:4] != cutoff_year_dict}
+    valid_dict_cv = {k: v for k, v in valid_dict.items() if (k[:4] == cutoff_year_dict)}
+
+
+    # train_dict_cv = train_all[valid_df_cv.index]
+
+    train_dataset = DataAdopterNpz(train_df_cv, train_dict_cv)
+    valid_dataset = DataAdopterNpz(valid_df_cv, valid_dict_cv)
+    test_dataset  = DataAdopterNpz(test_df, test_dict)
+
+
+    if WeightR is True: 
+        train_sampler, valid_sampler, test_sampler = return_weight_sampler(train_df_cv, valid_df_cv, test_df)
+
+        data_loader_training = torch.utils.data.DataLoader(train_dataset, batch_size= batch_size, 
                                                         shuffle = False,  sampler=train_sampler, num_workers=0)  # 
         data_loader_validate = torch.utils.data.DataLoader(valid_dataset, batch_size= batch_size, 
                                                         shuffle = False, sampler=valid_sampler, num_workers=0)  # 
         data_loader_testing  = torch.utils.data.DataLoader(test_dataset, batch_size= batch_size, 
-                                                        shuffle = False, sampler=test_sampler, num_workers=0) # 
+                                                        shuffle = False, num_workers=0) # sampler=test_sampler,
     else: 
         data_loader_training = torch.utils.data.DataLoader(train_dataset, batch_size= batch_size, 
                                                         shuffle = True,  num_workers=0) 
         data_loader_validate = torch.utils.data.DataLoader(valid_dataset, batch_size= batch_size, 
                                                         shuffle = False, num_workers=0) 
         data_loader_testing  = torch.utils.data.DataLoader(test_dataset, batch_size= batch_size, 
-                                                        shuffle = False,  num_workers=0) 
+                                                        shuffle = False, num_workers=0) 
 
     return data_loader_training, data_loader_validate, data_loader_testing
+
 
 #****************************************************************************************************#
 #************************************ DATA SOURCE GENERATOR  ****************************************#
 #****************************************************************************************************#
-
-
-
-plt.rcParams.update({'axes.titlesize': 14})
-plt.rc('xtick', labelsize=12)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=12)    # fontsize of the tick labels
-plt.rc('axes', labelsize=14)     # fontsize of the x and y labels 
+# plt.rcParams.update({'axes.titlesize': 14})
+# plt.rc('xtick', labelsize=12)    # fontsize of the tick labels
+# plt.rc('ytick', labelsize=12)    # fontsize of the tick labels
+# plt.rc('axes', labelsize=14)     # fontsize of the x and y labels 
 
 
 DEFAULT_IMAGE_DIR_NAME    = '/data1/fog-data/fog-maps/'
@@ -994,12 +1062,73 @@ NETCDF_PREDICTOR_NAMES = {
     NETCDF_RH_775mb, NETCDF_RH_750mb, NETCDF_RH_725mb, NETCDF_RH_700mb],
     'Physical_G4':[NETCDF_Q, NETCDF_LCLT, NETCDF_VIS, NETCDF_VVEL_975mb, NETCDF_VVEL_950mb, NETCDF_VVEL_925mb, NETCDF_VVEL_900mb, NETCDF_VVEL_875mb, NETCDF_VVEL_850mb, NETCDF_VVEL_825mb,
     NETCDF_VVEL_800mb, NETCDF_VVEL_775mb, NETCDF_VVEL_750mb, NETCDF_VVEL_725mb, NETCDF_VVEL_700mb], 
+
+    'Physical_G1_V2':[NETCDF_FRICV, NETCDF_UGRD_10m, NETCDF_UGRD_975mb, NETCDF_UGRD_950mb, NETCDF_UGRD_925mb, NETCDF_UGRD_900mb,
+    NETCDF_UGRD_875mb, NETCDF_UGRD_850mb, NETCDF_UGRD_825mb, NETCDF_UGRD_800mb, NETCDF_UGRD_775mb,  NETCDF_UGRD_750mb,
+    NETCDF_UGRD_725mb, NETCDF_UGRD_700mb, NETCDF_VGRD_10m, NETCDF_VGRD_975mb, NETCDF_VGRD_950mb, NETCDF_VGRD_925mb,
+    NETCDF_VGRD_900mb, NETCDF_VGRD_875mb, NETCDF_VGRD_850mb, NETCDF_VGRD_825mb, NETCDF_VGRD_800mb, NETCDF_VGRD_775mb, NETCDF_VGRD_750mb,
+    NETCDF_VGRD_725mb, NETCDF_VGRD_700mb, NETCDF_TKE_975mb, NETCDF_TKE_950mb, NETCDF_TKE_925mb, NETCDF_TKE_900mb, NETCDF_TKE_875mb, NETCDF_TKE_850mb, NETCDF_TKE_825mb,
+    NETCDF_TKE_800mb, NETCDF_TKE_775mb, NETCDF_TKE_750mb, NETCDF_TKE_725mb, NETCDF_TKE_700mb, NETCDF_VVEL_975mb, NETCDF_VVEL_950mb, NETCDF_VVEL_925mb, NETCDF_VVEL_900mb, NETCDF_VVEL_875mb, NETCDF_VVEL_850mb, NETCDF_VVEL_825mb,
+    NETCDF_VVEL_800mb, NETCDF_VVEL_775mb, NETCDF_VVEL_750mb, NETCDF_VVEL_725mb, NETCDF_VVEL_700mb],
+
+    'Physical_G2_V2':[NETCDF_Q, NETCDF_Q975, NETCDF_Q950, NETCDF_Q925, NETCDF_Q900,
+    NETCDF_Q875, NETCDF_Q850, NETCDF_Q825, NETCDF_Q800, NETCDF_Q775,NETCDF_Q750, NETCDF_Q725, NETCDF_Q700],
+
+    'Physical_G3_V2':[NETCDF_TMP_2m, NETCDF_TMP_975mb, NETCDF_TMP_950mb, NETCDF_TMP_925mb, NETCDF_TMP_900mb, NETCDF_TMP_875mb, NETCDF_TMP_850mb,
+    NETCDF_TMP_825mb, NETCDF_TMP_800mb, NETCDF_TMP_775mb, NETCDF_TMP_750mb, NETCDF_TMP_725mb, NETCDF_TMP_700mb, NETCDF_DPT_2m, NETCDF_RH_2m,
+    NETCDF_RH_975mb, NETCDF_RH_950mb, NETCDF_RH_925mb,NETCDF_RH_900mb, NETCDF_RH_875mb, NETCDF_RH_850mb, NETCDF_RH_825mb, NETCDF_RH_800mb,
+    NETCDF_RH_775mb, NETCDF_RH_750mb, NETCDF_RH_725mb, NETCDF_RH_700mb],
+
+    'Physical_G4_V2':[ NETCDF_LCLT, NETCDF_VIS,], 
+
+    'temp': [NETCDF_TMP_2m, NETCDF_TMP_975mb, NETCDF_TMP_950mb, NETCDF_TMP_925mb, NETCDF_TMP_900mb, 
+             NETCDF_TMP_875mb, NETCDF_TMP_850mb, NETCDF_TMP_825mb, NETCDF_TMP_800mb, NETCDF_TMP_775mb, 
+             NETCDF_TMP_750mb, NETCDF_TMP_725mb, NETCDF_TMP_700mb,],
+    'U10': [NETCDF_UGRD_10m, NETCDF_UGRD_975mb, NETCDF_UGRD_950mb, NETCDF_UGRD_925mb, NETCDF_UGRD_900mb,
+            NETCDF_UGRD_875mb, NETCDF_UGRD_850mb, NETCDF_UGRD_825mb, NETCDF_UGRD_800mb, NETCDF_UGRD_775mb,  
+            NETCDF_UGRD_750mb, NETCDF_UGRD_725mb, NETCDF_UGRD_700mb,], 
+    'V10': [NETCDF_VGRD_10m, NETCDF_VGRD_975mb, NETCDF_VGRD_950mb, NETCDF_VGRD_925mb, NETCDF_VGRD_900mb, 
+            NETCDF_VGRD_875mb, NETCDF_VGRD_850mb, NETCDF_VGRD_825mb, NETCDF_VGRD_800mb, NETCDF_VGRD_775mb, 
+            NETCDF_VGRD_750mb, NETCDF_VGRD_725mb, NETCDF_VGRD_700mb],
+    'TKE': [NETCDF_TKE_975mb, NETCDF_TKE_950mb, NETCDF_TKE_925mb, NETCDF_TKE_900mb, NETCDF_TKE_875mb, 
+            NETCDF_TKE_850mb, NETCDF_TKE_825mb, NETCDF_TKE_800mb, NETCDF_TKE_775mb, NETCDF_TKE_750mb, 
+            NETCDF_TKE_725mb, NETCDF_TKE_700mb],
+    'Q': [NETCDF_Q, NETCDF_Q975, NETCDF_Q950, NETCDF_Q925, NETCDF_Q900, NETCDF_Q875, NETCDF_Q850, NETCDF_Q825, 
+          NETCDF_Q800, NETCDF_Q775,NETCDF_Q750, NETCDF_Q725, NETCDF_Q700],
+    'RH':[NETCDF_RH_2m, NETCDF_RH_975mb, NETCDF_RH_950mb, NETCDF_RH_925mb,NETCDF_RH_900mb, NETCDF_RH_875mb, 
+          NETCDF_RH_850mb, NETCDF_RH_825mb, NETCDF_RH_800mb, NETCDF_RH_775mb, NETCDF_RH_750mb, NETCDF_RH_725mb, 
+          NETCDF_RH_700mb], 
+    'VVEL': [NETCDF_VVEL_975mb, NETCDF_VVEL_950mb, NETCDF_VVEL_925mb, NETCDF_VVEL_900mb, NETCDF_VVEL_875mb, 
+             NETCDF_VVEL_850mb, NETCDF_VVEL_825mb, NETCDF_VVEL_800mb, NETCDF_VVEL_775mb, NETCDF_VVEL_750mb, 
+             NETCDF_VVEL_725mb, NETCDF_VVEL_700mb],
+    'VIS': [NETCDF_LCLT, NETCDF_VIS, NETCDF_DPT_2m, NETCDF_FRICV],
+
     'Mixed':[NETCDF_SST, NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST], 
     'MUR': [NETCDF_SST], 
     'Generated': [NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST], 
     'TMP': [NETCDF_TMP_SFC, NETCDF_TMP_2m, NETCDF_DPT_2m]
     }
+
+
+
 NETCDF_MUR_NAMES   = [NETCDF_SST]
 NETCDF_TMP_NAMES   = [NETCDF_TMP_SFC, NETCDF_TMP_2m, NETCDF_DPT_2m]
 NETCDF_MIXED_NAMES = [NETCDF_SST, NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST]
 NETCDF_GEN_NAMES   = [NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST]
+
+
+
+
+var_idx  = [NETCDF_TMP_2m, NETCDF_TMP_975mb, NETCDF_TMP_950mb, NETCDF_TMP_925mb, NETCDF_TMP_900mb, NETCDF_TMP_875mb, NETCDF_TMP_850mb, 
+    NETCDF_TMP_825mb, NETCDF_TMP_800mb, NETCDF_TMP_775mb, NETCDF_TMP_750mb, NETCDF_TMP_725mb, NETCDF_TMP_700mb, 
+    NETCDF_UGRD_10m, NETCDF_VGRD_10m, NETCDF_FRICV, NETCDF_UGRD_975mb, NETCDF_VGRD_975mb, NETCDF_TKE_975mb,
+    NETCDF_UGRD_950mb, NETCDF_VGRD_950mb, NETCDF_TKE_950mb, NETCDF_UGRD_925mb, NETCDF_VGRD_925mb, NETCDF_TKE_925mb, NETCDF_UGRD_900mb, NETCDF_VGRD_900mb,
+    NETCDF_TKE_900mb, NETCDF_UGRD_875mb, NETCDF_VGRD_875mb, NETCDF_TKE_875mb, NETCDF_UGRD_850mb, NETCDF_VGRD_850mb, NETCDF_TKE_850mb, NETCDF_UGRD_825mb,
+    NETCDF_VGRD_825mb, NETCDF_TKE_825mb, NETCDF_UGRD_800mb, NETCDF_VGRD_800mb, NETCDF_TKE_800mb, NETCDF_UGRD_775mb, NETCDF_VGRD_775mb,
+    NETCDF_TKE_775mb, NETCDF_UGRD_750mb, NETCDF_VGRD_750mb, NETCDF_TKE_750mb, NETCDF_UGRD_725mb, NETCDF_VGRD_725mb, NETCDF_TKE_725mb,
+    NETCDF_UGRD_700mb,  NETCDF_VGRD_700mb, NETCDF_TKE_700mb, NETCDF_Q975, NETCDF_Q950, NETCDF_Q925, NETCDF_Q900, NETCDF_Q875, NETCDF_Q850,
+    NETCDF_Q825, NETCDF_Q800, NETCDF_Q775,NETCDF_Q750, NETCDF_Q725, NETCDF_Q700, NETCDF_RH_975mb, NETCDF_RH_950mb, NETCDF_RH_925mb,NETCDF_RH_900mb, 
+    NETCDF_RH_875mb, NETCDF_RH_850mb, NETCDF_RH_825mb, NETCDF_RH_800mb, NETCDF_RH_775mb, NETCDF_RH_750mb, NETCDF_RH_725mb, NETCDF_RH_700mb, 
+    NETCDF_DPT_2m, NETCDF_Q, NETCDF_RH_2m, NETCDF_LCLT, NETCDF_VIS, NETCDF_VVEL_975mb, NETCDF_VVEL_950mb, NETCDF_VVEL_925mb, NETCDF_VVEL_900mb, 
+    NETCDF_VVEL_875mb, NETCDF_VVEL_850mb, NETCDF_VVEL_825mb, NETCDF_VVEL_800mb, NETCDF_VVEL_775mb, NETCDF_VVEL_750mb, NETCDF_VVEL_725mb, NETCDF_VVEL_700mb, 
+    NETCDF_SST, NETCDF_TMPDPT, NETCDF_TMPSST, NETCDF_DPTSST]

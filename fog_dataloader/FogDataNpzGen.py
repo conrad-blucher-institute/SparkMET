@@ -24,7 +24,7 @@ year_information          = {'2009':['20090101', '20091231'],
 
 
 data_split_dict_ = {'train': ['2013', '2014', '2015', '2016', '2017'], 
-                    'valid': ['2009', '2010', '2011'], 
+                    'valid': ['2009', '2010', '2011','2012'], 
                     'test': ['2018', '2019', '2020']},
 class FogData_Configs():
     def __init__(self, input_path: str, target_path: str, start_date: str, finish_date: str, data_split_dict: dict, 
@@ -205,7 +205,6 @@ class input_dataframe_generater():
 
 
         return [train_df, valid_df, test_df]
-
 
 
 class FogDataNPZ(): 
